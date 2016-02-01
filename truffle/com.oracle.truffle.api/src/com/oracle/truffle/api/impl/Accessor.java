@@ -39,8 +39,6 @@ import com.oracle.truffle.api.RootCallTarget;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.TruffleLanguage.Env;
-import com.oracle.truffle.api.debug.Debugger;
-import com.oracle.truffle.api.debug.SuspendedEvent;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.instrument.Instrumenter;
 import com.oracle.truffle.api.instrument.Probe;
@@ -116,7 +114,7 @@ public abstract class Accessor {
 
         try {
             Class.forName(Instrumenter.class.getName(), true, Instrumenter.class.getClassLoader());
-            Class.forName(Debugger.class.getName(), true, Debugger.class.getClassLoader());
+            Class.forName("com.oracle.truffle.api.debug.Debugger", true, Instrumenter.class.getClassLoader());
         } catch (ClassNotFoundException ex) {
             throw new IllegalStateException(ex);
         }
@@ -169,7 +167,7 @@ public abstract class Accessor {
         return API.eval(l, s, cache);
     }
 
-    protected Object evalInContext(Object vm, SuspendedEvent ev, String code, Node node, MaterializedFrame frame) throws IOException {
+    protected Object evalInContext(Object vm, Object ev, String code, Node node, MaterializedFrame frame) throws IOException {
         return API.evalInContext(vm, ev, code, node, frame);
     }
 
@@ -299,7 +297,7 @@ public abstract class Accessor {
         return INSTRUMENTHANDLER.createInstrumentationHandler(vm, out, err, in);
     }
 
-    protected Debugger createDebugger(Object vm, Instrumenter instrumenter) {
+    protected Object createDebugger(Object vm, Instrumenter instrumenter) {
         return DEBUG.createDebugger(vm, instrumenter);
     }
 
@@ -308,7 +306,7 @@ public abstract class Accessor {
 
     @TruffleBoundary
     @SuppressWarnings("unused")
-    protected Closeable executionStart(Object vm, int currentDepth, Debugger debugger, Source s) {
+    protected Closeable executionStart(Object vm, int currentDepth, Object debugger, Source s) {
         vm.getClass();
         final Object prev = CURRENT_VM.get();
         final Closeable debugClose = DEBUG.executionStart(vm, prev == null ? 0 : -1, debugger, s);

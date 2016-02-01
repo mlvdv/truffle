@@ -52,6 +52,7 @@ suite = {
       "dependencies" : [
         "com.oracle.truffle.api.interop.java",
         "com.oracle.truffle.api.instrumentation",
+        "com.oracle.truffle.api.debug",
       ],
       "javaCompliance" : "1.7",
       "workingSets" : "API,Truffle",
@@ -146,9 +147,9 @@ suite = {
     "com.oracle.truffle.api.debug" : {
       "subDir" : "truffle",
       "sourceDirs" : ["src"],
-      "dependencies" : ["com.oracle.truffle.api.vm"],
+      "dependencies" : ["com.oracle.truffle.api"],
       "checkstyle" : "com.oracle.truffle.api",
-      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
+#      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
       "javaCompliance" : "1.7",
       "workingSets" : "API,Truffle",
     },

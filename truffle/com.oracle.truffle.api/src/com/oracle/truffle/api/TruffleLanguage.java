@@ -34,8 +34,6 @@ import java.lang.annotation.Target;
 import java.util.Map;
 import java.util.Objects;
 
-import com.oracle.truffle.api.debug.Debugger;
-import com.oracle.truffle.api.debug.SuspendedEvent;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.impl.Accessor;
 import com.oracle.truffle.api.impl.FindContextNode;
@@ -479,7 +477,7 @@ public abstract class TruffleLanguage<C> {
         }
 
         @Override
-        protected Object evalInContext(Object vm, SuspendedEvent ev, String code, Node node, MaterializedFrame frame) throws IOException {
+        protected Object evalInContext(Object vm, Object ev, String code, Node node, MaterializedFrame frame) throws IOException {
             RootNode rootNode = node.getRootNode();
             Class<? extends TruffleLanguage> languageType = findLanguage(rootNode);
             final Env env = findLanguage(vm, languageType);
