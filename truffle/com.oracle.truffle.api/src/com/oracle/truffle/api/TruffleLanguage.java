@@ -128,8 +128,8 @@ public abstract class TruffleLanguage<C> {
      * findContext(findNode)} to get back your language context.
      *
      * If it is expected that any {@linkplain Instrumenter Instrumentation Services} or tools that
-     * depend on those services (e.g. the {@link Debugger}, then part of the preparation in the new
-     * context is to
+     * depend on those services (e.g. the {@link com.oracle.truffle.api.debug.Debugger}, then part
+     * of the preparation in the new context is to
      * {@linkplain Instrumenter#registerASTProber(com.oracle.truffle.api.instrument.ASTProber)
      * register} a "default" {@link ASTProber} for the language implementation. Instrumentation
      * requires that this be available to "mark up" each newly created AST with
