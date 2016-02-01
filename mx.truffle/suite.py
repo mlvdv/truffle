@@ -149,7 +149,7 @@ suite = {
       "sourceDirs" : ["src"],
       "dependencies" : ["com.oracle.truffle.api"],
       "checkstyle" : "com.oracle.truffle.api",
-#      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
+      "annotationProcessors" : ["INTERNAL_PROCESSOR"],
       "javaCompliance" : "1.7",
       "workingSets" : "API,Truffle",
     },
@@ -352,6 +352,15 @@ suite = {
       "exclude" : ["mx:JUNIT"],
       "description" : """A collection of tests that can certify language implementation to be compliant
         with most recent requirements of the Truffle infrastructure and tooling.""",
+    },
+
+    "INTERNAL_PROCESSOR" : {
+      "internal" : True,
+      "subDir" : "truffle",
+      "javaCompliance" : "1.7",
+      "dependencies" : ["com.oracle.truffle.dsl.processor"],
+      "distDependencies" : [],
+      "description" : "The Truffle DSL Processor generates source code for nodes that are declared using the DSL.",
     },
 
     "TRUFFLE_DSL_PROCESSOR" : {
