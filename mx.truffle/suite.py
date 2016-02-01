@@ -143,6 +143,30 @@ suite = {
       "workingSets" : "API,Truffle",
     },
 
+    "com.oracle.truffle.api.debug" : {
+      "subDir" : "truffle",
+      "sourceDirs" : ["src"],
+      "dependencies" : ["com.oracle.truffle.api.vm"],
+      "checkstyle" : "com.oracle.truffle.api",
+      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
+      "javaCompliance" : "1.7",
+      "workingSets" : "API,Truffle",
+    },
+                
+    "com.oracle.truffle.api.debug.test" : {
+      "subDir" : "truffle",
+      "sourceDirs" : ["src"],
+      "dependencies" : [
+        "com.oracle.truffle.api.debug",
+        "com.oracle.truffle.api.instrumentation.test",
+        "com.oracle.truffle.api.dsl.test",
+        "mx:JUNIT"
+      ],
+      "checkstyle" : "com.oracle.truffle.api",
+      "javaCompliance" : "1.7",
+      "workingSets" : "API,Truffle",
+    },
+
     "com.oracle.truffle.api.interop.java" : {
       "subDir" : "truffle",
       "sourceDirs" : ["src"],
