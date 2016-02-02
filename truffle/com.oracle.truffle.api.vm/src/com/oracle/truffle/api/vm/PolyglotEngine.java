@@ -160,7 +160,7 @@ public class PolyglotEngine {
         this.initThread = Thread.currentThread();
         this.globals = new HashMap<>(globals);
         this.instrumenter = SPI.createInstrumenter(this);
-        this.debugger = SPI.createDebugger(this, this.instrumenter);
+        this.debugger = (Debugger) SPI.createDebugger(this, this.instrumenter);
         // new instrumentation
         this.instrumentationHandler = SPI.createInstrumentationHandler(this, out, err, in);
         Map<String, Language> map = new HashMap<>();
@@ -1055,7 +1055,7 @@ public class PolyglotEngine {
         }
 
         @Override
-        protected Debugger createDebugger(Object vm, Instrumenter instrumenter) {
+        protected Object createDebugger(Object vm, Instrumenter instrumenter) {
             return super.createDebugger(vm, instrumenter);
         }
 
@@ -1119,7 +1119,7 @@ public class PolyglotEngine {
         }
 
         @Override
-        protected Closeable executionStart(Object obj, int currentDepth, Debugger debugger, Source s) {
+        protected Closeable executionStart(Object obj, int currentDepth, Object debugger, Source s) {
             PolyglotEngine vm = (PolyglotEngine) obj;
             return super.executionStart(vm, -1, debugger, s);
         }

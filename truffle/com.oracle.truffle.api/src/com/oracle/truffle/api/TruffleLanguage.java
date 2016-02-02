@@ -34,8 +34,6 @@ import java.lang.annotation.Target;
 import java.util.Map;
 import java.util.Objects;
 
-import com.oracle.truffle.api.debug.Debugger;
-import com.oracle.truffle.api.debug.SuspendedEvent;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.impl.Accessor;
 import com.oracle.truffle.api.impl.FindContextNode;
@@ -130,8 +128,8 @@ public abstract class TruffleLanguage<C> {
      * findContext(findNode)} to get back your language context.
      *
      * If it is expected that any {@linkplain Instrumenter Instrumentation Services} or tools that
-     * depend on those services (e.g. the {@link Debugger}, then part of the preparation in the new
-     * context is to
+     * depend on those services (e.g. the {@link com.oracle.truffle.api.debug.Debugger}, then part
+     * of the preparation in the new context is to
      * {@linkplain Instrumenter#registerASTProber(com.oracle.truffle.api.instrument.ASTProber)
      * register} a "default" {@link ASTProber} for the language implementation. Instrumentation
      * requires that this be available to "mark up" each newly created AST with
@@ -479,7 +477,7 @@ public abstract class TruffleLanguage<C> {
         }
 
         @Override
-        protected Object evalInContext(Object vm, SuspendedEvent ev, String code, Node node, MaterializedFrame frame) throws IOException {
+        protected Object evalInContext(Object vm, Object ev, String code, Node node, MaterializedFrame frame) throws IOException {
             RootNode rootNode = node.getRootNode();
             Class<? extends TruffleLanguage> languageType = findLanguage(rootNode);
             final Env env = findLanguage(vm, languageType);

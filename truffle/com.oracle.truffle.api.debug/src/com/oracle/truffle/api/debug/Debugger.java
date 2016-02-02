@@ -911,7 +911,8 @@ public final class Debugger {
     static final class AccessorDebug extends Accessor {
 
         @Override
-        protected Closeable executionStart(Object vm, int currentDepth, final Debugger debugger, Source s) {
+        protected Closeable executionStart(Object vm, int currentDepth, final Object d, Source s) {
+            final Debugger debugger = (Debugger) d;
             debugger.executionStarted(currentDepth, s);
             return new Closeable() {
                 @Override
@@ -937,7 +938,7 @@ public final class Debugger {
         }
 
         @Override
-        protected Object evalInContext(Object vm, SuspendedEvent ev, String code, Node node, MaterializedFrame frame) throws IOException {
+        protected Object evalInContext(Object vm, Object ev, String code, Node node, MaterializedFrame frame) throws IOException {
             return super.evalInContext(vm, ev, code, node, frame);
         }
     }
