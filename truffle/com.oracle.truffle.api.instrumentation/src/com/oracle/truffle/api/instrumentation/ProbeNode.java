@@ -29,6 +29,8 @@ import java.io.PrintStream;
 import com.oracle.truffle.api.Assumption;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
+import com.oracle.truffle.api.KillException;
+import com.oracle.truffle.api.QuitException;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.instrumentation.InstrumentableFactory.WrapperNode;
@@ -272,6 +274,8 @@ public final class ProbeNode extends Node {
         final void onEnter(EventContext context, VirtualFrame frame) {
             try {
                 innerOnEnter(context, frame);
+            } catch (QuitException | KillException ex) {
+                throw ex;
             } catch (Throwable t) {
                 if (!seenException) {
                     CompilerDirectives.transferToInterpreterAndInvalidate();
