@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,8 +24,6 @@
  */
 package com.oracle.truffle.api.debug;
 
-import com.oracle.truffle.api.instrument.SyntaxTag;
-
 /**
  * A breakpoint associated with a {@link SyntaxTag}.
  *
@@ -40,6 +38,6 @@ abstract class TagBreakpoint extends Breakpoint {
     /**
      * Gets the tag that specifies where this breakpoint will trigger.
      */
-    public abstract SyntaxTag getTag();
+    public abstract String getTag();
 
 }

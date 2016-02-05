@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -49,8 +49,6 @@ import com.oracle.truffle.api.instrument.EvalInstrumentListener;
 import com.oracle.truffle.api.instrument.Instrumenter;
 import com.oracle.truffle.api.instrument.Probe;
 import com.oracle.truffle.api.instrument.ProbeInstrument;
-import com.oracle.truffle.api.instrument.SyntaxTag;
-import com.oracle.truffle.api.instrument.impl.DefaultProbeListener;
 import com.oracle.truffle.api.instrument.impl.DefaultStandardInstrumentListener;
 import com.oracle.truffle.api.nodes.InvalidAssumptionException;
 import com.oracle.truffle.api.nodes.Node;
@@ -98,22 +96,22 @@ final class TagBreakpointFactory {
         }
     }
 
-    private static final Comparator<Entry<SyntaxTag, TagBreakpointImpl>> BREAKPOINT_COMPARATOR = new Comparator<Entry<SyntaxTag, TagBreakpointImpl>>() {
+    private static final Comparator<Entry<String, TagBreakpointImpl>> BREAKPOINT_COMPARATOR = new Comparator<Entry<String, TagBreakpointImpl>>() {
 
         @Override
-        public int compare(Entry<SyntaxTag, TagBreakpointImpl> entry1, Entry<SyntaxTag, TagBreakpointImpl> entry2) {
-            return entry1.getKey().name().compareTo(entry2.getKey().name());
+        public int compare(Entry<String, TagBreakpointImpl> entry1, Entry<String, TagBreakpointImpl> entry2) {
+            return entry1.getKey().compareTo(entry2.getKey());
         }
     };
 
-    private final Debugger debugger;
+    @SuppressWarnings("unused") private final Debugger debugger; // TODO
     private final BreakpointCallback breakpointCallback;
     private final WarningLog warningLog;
 
     /**
      * Map: Tags ==> Tag Breakpoints. There may be no more than one breakpoint per Tag.
      */
-    private final Map<SyntaxTag, TagBreakpointImpl> tagToBreakpoint = new HashMap<>();
+    private final Map<String, TagBreakpointImpl> tagToBreakpoint = new HashMap<>();
 
     /**
      * Globally suspends all line breakpoint activity when {@code false}, ignoring whether
@@ -127,16 +125,16 @@ final class TagBreakpointFactory {
         this.breakpointCallback = breakpointCallback;
         this.warningLog = warningLog;
 
-        debugger.getInstrumenter().addProbeListener(new DefaultProbeListener() {
-
-            @Override
-            public void probeTaggedAs(Probe probe, SyntaxTag tag, Object tagValue) {
-                final TagBreakpointImpl breakpoint = tagToBreakpoint.get(tag);
-                if (breakpoint != null) {
-                    breakpoint.attach(probe);
-                }
-            }
-        });
+// debugger.getInstrumenter().addProbeListener(new DefaultProbeListener() {
+//
+// @Override
+// public void probeTaggedAs(Probe probe, SyntaxTag tag, Object tagValue) {
+// final TagBreakpointImpl breakpoint = tagToBreakpoint.get(tag);
+// if (breakpoint != null) {
+// breakpoint.attach(probe);
+// }
+// }
+// });
     }
 
     /**
@@ -157,11 +155,11 @@ final class TagBreakpointFactory {
      * Gets all current tag breakpoints,regardless of status; sorted and modification safe.
      */
     List<TagBreakpoint> getAll() {
-        ArrayList<Entry<SyntaxTag, TagBreakpointImpl>> entries = new ArrayList<>(tagToBreakpoint.entrySet());
+        ArrayList<Entry<String, TagBreakpointImpl>> entries = new ArrayList<>(tagToBreakpoint.entrySet());
         Collections.sort(entries, BREAKPOINT_COMPARATOR);
 
         final ArrayList<TagBreakpoint> breakpoints = new ArrayList<>(entries.size());
-        for (Entry<SyntaxTag, TagBreakpointImpl> entry : entries) {
+        for (Entry<String, TagBreakpointImpl> entry : entries) {
             breakpoints.add(entry.getValue());
         }
         return breakpoints;
@@ -178,7 +176,7 @@ final class TagBreakpointFactory {
      * @throws IOException if a breakpoint already exists for the tag and the ignore count is the
      *             same
      */
-    TagBreakpoint create(int ignoreCount, SyntaxTag tag, boolean oneShot) throws IOException {
+    TagBreakpoint create(int ignoreCount, String tag, boolean oneShot) throws IOException {
 
         TagBreakpointImpl breakpoint = tagToBreakpoint.get(tag);
 
@@ -191,12 +189,12 @@ final class TagBreakpointFactory {
 
             tagToBreakpoint.put(tag, breakpoint);
 
-            for (Probe probe : debugger.getInstrumenter().findProbesTaggedAs(tag)) {
-                breakpoint.attach(probe);
-            }
+// for (Probe probe : debugger.getInstrumenter().findProbesTaggedAs(tag)) {
+// breakpoint.attach(probe);
+// }
         } else {
             if (ignoreCount == breakpoint.getIgnoreCount()) {
-                throw new IOException(BREAKPOINT_NAME + " already set for tag " + tag.name());
+                throw new IOException(BREAKPOINT_NAME + " already set for tag " + tag.toString());
             }
             breakpoint.setIgnoreCount(ignoreCount);
             if (TRACE) {
@@ -209,7 +207,7 @@ final class TagBreakpointFactory {
     /**
      * Returns the {@link TagBreakpoint} for a given tag, {@code null} if none.
      */
-    TagBreakpoint get(SyntaxTag tag) {
+    TagBreakpoint get(String tag) {
         return tagToBreakpoint.get(tag);
     }
 
@@ -240,7 +238,7 @@ final class TagBreakpointFactory {
 
         private static final String SHOULD_NOT_HAPPEN = "TagBreakpointImpl:  should not happen";
 
-        private final SyntaxTag tag;
+        private final String tag;
 
         // Cached assumption that the global status of tag breakpoint activity has not changed.
         private Assumption breakpointsActiveAssumption;
@@ -257,7 +255,7 @@ final class TagBreakpointFactory {
          */
         private List<ProbeInstrument> instruments = new ArrayList<>();
 
-        private TagBreakpointImpl(int ignoreCount, SyntaxTag tag, boolean oneShot) {
+        private TagBreakpointImpl(int ignoreCount, String tag, boolean oneShot) {
             super(ENABLED, ignoreCount, oneShot);
             this.tag = tag;
             this.breakpointsActiveAssumption = TagBreakpointFactory.this.breakpointsActiveUnchanged.getAssumption();
@@ -332,18 +330,20 @@ final class TagBreakpointFactory {
             }
         }
 
+        @SuppressWarnings("unused")
         private void attach(Probe newProbe) {
             if (getState() == DISPOSED) {
                 throw new IllegalStateException("Attempt to attach a disposed " + BREAKPOINT_NAME);
             }
             ProbeInstrument newInstrument = null;
-            final Instrumenter instrumenter = debugger.getInstrumenter();
-            if (conditionSource == null) {
-                newInstrument = instrumenter.attach(newProbe, new UnconditionalTagBreakInstrumentListener(), BREAKPOINT_NAME);
-            } else {
-                instrumenter.attach(newProbe, conditionSource, this, BREAKPOINT_NAME, null);
-            }
-            instruments.add(newInstrument);
+// final Instrumenter instrumenter = debugger.getInstrumenter();
+// if (conditionSource == null) {
+// newInstrument = instrumenter.attach(newProbe, new UnconditionalTagBreakInstrumentListener(),
+// BREAKPOINT_NAME);
+// } else {
+// instrumenter.attach(newProbe, conditionSource, this, BREAKPOINT_NAME, null);
+// }
+// instruments.add(newInstrument);
             changeState(isEnabled ? ENABLED : DISABLED);
         }
 
@@ -356,7 +356,7 @@ final class TagBreakpointFactory {
 
         @TruffleBoundary
         private String getShortDescription() {
-            return BREAKPOINT_NAME + "@" + tag.name();
+            return BREAKPOINT_NAME + "@" + tag.toString();
         }
 
         private void changeState(State after) {
@@ -432,14 +432,15 @@ final class TagBreakpointFactory {
 
         @Override
         public String getLocationDescription() {
-            return "Tag " + tag.name();
+            return "Tag " + tag.toString();
         }
 
         @Override
-        public SyntaxTag getTag() {
+        public String getTag() {
             return tag;
         }
 
+        @SuppressWarnings("unused")
         private final class UnconditionalTagBreakInstrumentListener extends DefaultStandardInstrumentListener {
 
             @Override
