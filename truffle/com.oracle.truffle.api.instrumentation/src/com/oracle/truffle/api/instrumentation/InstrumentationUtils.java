@@ -143,9 +143,10 @@ public final class InstrumentationUtils {
 
             p.print("(");
 
-            p.print(displaySourceInfo(node));
-
-            p.print(displayTags(node));
+            if (!(node instanceof WrapperNode)) {
+                p.print(displaySourceInfo(node));
+                p.print(displayTags(node));
+            }
 
             ArrayList<NodeFieldAccessor> childFields = new ArrayList<>();
 
