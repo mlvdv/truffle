@@ -40,8 +40,6 @@ import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.TruffleLanguage.Env;
 import com.oracle.truffle.api.frame.MaterializedFrame;
-import com.oracle.truffle.api.instrument.Instrumenter;
-import com.oracle.truffle.api.instrument.Probe;
 import com.oracle.truffle.api.instrument.Visualizer;
 import com.oracle.truffle.api.instrument.WrapperNode;
 import com.oracle.truffle.api.nodes.Node;
@@ -55,7 +53,6 @@ public abstract class Accessor {
     private static Accessor API;
     private static Accessor SPI;
     private static Accessor NODES;
-    private static Accessor INSTRUMENT;
     static Accessor INSTRUMENTHANDLER;
     private static Accessor DEBUG;
     private static Accessor OPTIMIZEDCALLTARGET;
@@ -112,12 +109,6 @@ public abstract class Accessor {
         new Node(null) {
         }.getRootNode();
 
-        try {
-            Class.forName(Instrumenter.class.getName(), true, Instrumenter.class.getClassLoader());
-            Class.forName("com.oracle.truffle.api.debug.Debugger", true, Instrumenter.class.getClassLoader());
-        } catch (ClassNotFoundException ex) {
-            throw new IllegalStateException(ex);
-        }
     }
 
     protected Accessor() {
@@ -131,11 +122,6 @@ public abstract class Accessor {
                 throw new IllegalStateException();
             }
             NODES = this;
-        } else if (this.getClass().getSimpleName().endsWith("Instrument")) {
-            if (INSTRUMENT != null) {
-                throw new IllegalStateException();
-            }
-            INSTRUMENT = this;
         } else if (this.getClass().getSimpleName().endsWith("InstrumentHandler")) {
             if (INSTRUMENTHANDLER != null) {
                 throw new IllegalStateException();
@@ -159,8 +145,8 @@ public abstract class Accessor {
         }
     }
 
-    protected Env attachEnv(Object vm, TruffleLanguage<?> language, OutputStream stdOut, OutputStream stdErr, InputStream stdIn, Instrumenter instrumenter) {
-        return API.attachEnv(vm, language, stdOut, stdErr, stdIn, instrumenter);
+    protected Env attachEnv(Object vm, TruffleLanguage<?> language, OutputStream stdOut, OutputStream stdErr, InputStream stdIn) {
+        return API.attachEnv(vm, language, stdOut, stdErr, stdIn);
     }
 
     protected Object eval(TruffleLanguage<?> l, Source s, Map<Source, CallTarget> cache) throws IOException {
@@ -218,10 +204,10 @@ public abstract class Accessor {
         return NODES.findLanguage(n);
     }
 
-    @SuppressWarnings("rawtypes")
-    protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
-        return INSTRUMENT.findLanguage(probe);
-    }
+// @SuppressWarnings("rawtypes")
+// protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
+// return INSTRUMENT.findLanguage(probe);
+// }
 
     @SuppressWarnings("rawtypes")
     protected Env findLanguage(Object known, Class<? extends TruffleLanguage> languageClass) {
@@ -254,23 +240,6 @@ public abstract class Accessor {
         return SPI.findLanguageImpl(vm, languageClass, mimeType);
     }
 
-    protected Instrumenter getInstrumenter(Object known) {
-        Object vm;
-        if (known == null) {
-            vm = CURRENT_VM.get();
-            if (vm == null) {
-                return null;
-            }
-        } else {
-            vm = known;
-        }
-        return SPI.getInstrumenter(vm);
-    }
-
-    protected Instrumenter createInstrumenter(Object vm) {
-        return INSTRUMENT.createInstrumenter(vm);
-    }
-
     protected void addInstrumentation(Object instrumentationHandler, Object key, Class<?> instrumentationClass) {
         INSTRUMENTHANDLER.addInstrumentation(instrumentationHandler, key, instrumentationClass);
     }
@@ -297,8 +266,8 @@ public abstract class Accessor {
         return INSTRUMENTHANDLER.createInstrumentationHandler(vm, out, err, in);
     }
 
-    protected Object createDebugger(Object vm, Instrumenter instrumenter) {
-        return DEBUG.createDebugger(vm, instrumenter);
+    protected Object getDebugger(Object vm) {
+        return DEBUG == null ? null : DEBUG.getDebugger(vm);
     }
 
     private static Reference<Object> previousVM = new WeakReference<>(null);
@@ -378,10 +347,6 @@ public abstract class Accessor {
 
     protected void dispose(TruffleLanguage<?> impl, Env env) {
         API.dispose(impl, env);
-    }
-
-    protected void probeAST(RootNode rootNode) {
-        INSTRUMENT.probeAST(rootNode);
     }
 
     @SuppressWarnings("rawtypes")

@@ -525,11 +525,6 @@ public abstract class Node implements NodeInterface, Cloneable {
         protected boolean isInstrumentable(RootNode rootNode) {
             return rootNode.isInstrumentable();
         }
-
-        @Override
-        protected void probeAST(RootNode rootNode) {
-            super.probeAST(rootNode);
-        }
     }
 
     // registers into Accessor.NODES

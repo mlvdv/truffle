@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -108,7 +108,6 @@ import com.oracle.truffle.sl.nodes.expression.SLStringLiteralNode;
 import com.oracle.truffle.sl.nodes.expression.SLSubNode;
 import com.oracle.truffle.sl.nodes.instrument.SLDefaultVisualizer;
 import com.oracle.truffle.sl.nodes.instrument.SLExpressionWrapperNode;
-import com.oracle.truffle.sl.nodes.instrument.SLStandardASTProber;
 import com.oracle.truffle.sl.nodes.instrument.SLStatementWrapperNode;
 import com.oracle.truffle.sl.nodes.local.SLReadLocalVariableNode;
 import com.oracle.truffle.sl.nodes.local.SLWriteLocalVariableNode;
@@ -216,7 +215,6 @@ public final class SLLanguage extends TruffleLanguage<SLContext> {
         for (NodeFactory<? extends SLBuiltinNode> builtin : builtins) {
             context.installBuiltin(builtin, true);
         }
-        env.instrumenter().registerASTProber(new SLStandardASTProber());
         return context;
     }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,6 +25,7 @@
 package com.oracle.truffle.tools.debug.shell.server;
 
 import java.io.IOException;
+import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -42,8 +43,6 @@ import com.oracle.truffle.api.debug.ExecutionEvent;
 import com.oracle.truffle.api.debug.SuspendedEvent;
 import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.MaterializedFrame;
-import com.oracle.truffle.api.instrument.StandardSyntaxTag;
-import com.oracle.truffle.api.instrument.SyntaxTag;
 import com.oracle.truffle.api.instrument.Visualizer;
 import com.oracle.truffle.api.instrument.impl.DefaultVisualizer;
 import com.oracle.truffle.api.nodes.Node;
@@ -66,6 +65,24 @@ public final class REPLServer {
     enum BreakpointKind {
         LINE,
         TAG
+    }
+
+    private static final boolean TRACE = true;
+    private static final String TRACE_PREFIX = "REPLSrv: ";
+    private static final PrintStream OUT = System.out;
+
+    private static void trace(String format, Object... args) {
+        if (TRACE) {
+            OUT.println(TRACE_PREFIX + String.format(format, args));
+        }
+    }
+
+    private static String describeObject(Object obj) {
+        if (obj == null) {
+            return "null";
+        }
+        String name = obj.toString();
+        return name.substring(name.lastIndexOf('.') + 1);
     }
 
     private static int nextBreakpointUID = 0;
@@ -120,21 +137,36 @@ public final class REPLServer {
     private final EventConsumer<SuspendedEvent> onHalted = new EventConsumer<SuspendedEvent>(SuspendedEvent.class) {
         @Override
         protected void on(SuspendedEvent ev) {
+            if (TRACE) {
+                trace("BEGIN on %s", describeObject(ev));
+            }
             REPLServer.this.haltedAt(ev);
+            if (TRACE) {
+                trace("END on %s", describeObject(ev));
+            }
         }
     };
 
     private final EventConsumer<ExecutionEvent> onExec = new EventConsumer<ExecutionEvent>(ExecutionEvent.class) {
         @Override
         protected void on(ExecutionEvent event) {
+            if (TRACE) {
+                trace("BEGIN on %s debugger=%s", describeObject(event), describeObject(db));
+            }
             if (db == null) {
                 db = event.getDebugger();
                 for (BreakpointInfo breakpointInfo : breakpoints.values()) {
+                    if (TRACE) {
+                        trace("ACTIVATING %s", breakpointInfo.summarize());
+                    }
                     breakpointInfo.activate(db);
                 }
             }
             if (currentServerContext.steppingInto) {
                 event.prepareStepInto();
+            }
+            if (TRACE) {
+                trace("END on %s debugger=%s", describeObject(event), describeObject(db));
             }
         }
     };
@@ -497,10 +529,14 @@ public final class REPLServer {
     }
 
     BreakpointInfo setLineBreakpoint(int ignoreCount, LineLocation lineLocation, boolean oneShot) {
-        return new BreakpointInfo(db, lineLocation, ignoreCount, oneShot);
+        final BreakpointInfo info = new BreakpointInfo(db, lineLocation, ignoreCount, oneShot);
+        if (TRACE) {
+            trace("NEW %s", info.summarize());
+        }
+        return info;
     }
 
-    BreakpointInfo setTagBreakpoint(int ignoreCount, StandardSyntaxTag tag, boolean oneShot) {
+    BreakpointInfo setTagBreakpoint(int ignoreCount, String tag, boolean oneShot) {
         return new BreakpointInfo(db, tag, ignoreCount, oneShot);
     }
 
@@ -535,7 +571,7 @@ public final class REPLServer {
 
         private final LineLocation lineLocation;
 
-        private final SyntaxTag tag;
+        private final String tag;
 
         private BreakpointInfo(Debugger debugger, LineLocation lineLocation, int ignoreCount, boolean oneShot) {
             this.kind = BreakpointKind.LINE;
@@ -552,7 +588,7 @@ public final class REPLServer {
             breakpoints.put(uid, this);
         }
 
-        private BreakpointInfo(Debugger debugger, SyntaxTag tag, int ignoreCount, boolean oneShot) {
+        private BreakpointInfo(Debugger debugger, String tag, int ignoreCount, boolean oneShot) {
             this.kind = BreakpointKind.TAG;
             this.lineLocation = null;
             this.tag = tag;
@@ -594,7 +630,7 @@ public final class REPLServer {
                 }
                 state = null;
             } catch (IOException ex) {
-                throw new IllegalStateException("Failure to activate breakpoint " + uid + ":  " + ex.getMessage());
+                throw new IllegalStateException(ex.getMessage());
             }
         }
 
@@ -612,7 +648,7 @@ public final class REPLServer {
                     case LINE:
                         return "Line: " + lineLocation.getShortDescription();
                     case TAG:
-                        return "Tag " + tag.name();
+                        return "Tag " + tag.toString();
                     default:
                         throw new IllegalStateException("Unexpected breakpoint state");
                 }
@@ -680,6 +716,17 @@ public final class REPLServer {
             state = State.DISPOSED;
             breakpoints.remove(uid);
             conditionSource = null;
+        }
+
+        String summarize() {
+            final StringBuilder sb = new StringBuilder("Breakpoint");
+            sb.append(" id=" + uid);
+            sb.append(" locn=(" + describeLocation());
+            sb.append(") " + describeState());
+            if (db == null) {
+                sb.append(" (UNACTIVATED)");
+            }
+            return sb.toString();
         }
     }
 }

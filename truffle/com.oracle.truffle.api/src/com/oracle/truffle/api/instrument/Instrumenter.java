@@ -46,6 +46,7 @@ import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
+
 import java.util.Map;
 
 /**
@@ -538,7 +539,7 @@ public final class Instrumenter {
         Class<? extends TruffleLanguage> foundLanguageClass = null;
         if (languageClass == null) {
             if (source.getMimeType() == null) {
-                foundLanguageClass = ACCESSOR.findLanguage(probe);
+                // foundLanguageClass = ACCESSOR.findLanguage(probe);
             }
         } else {
             foundLanguageClass = languageClass;
@@ -657,6 +658,7 @@ public final class Instrumenter {
      * Enables instrumentation in a newly created AST by applying all registered instances of
      * {@link ASTProber}.
      */
+    @SuppressWarnings("unused")
     private void probeAST(RootNode rootNode) {
         if (!astProbers.isEmpty()) {
 
@@ -687,11 +689,6 @@ public final class Instrumenter {
     static final class AccessorInstrument extends Accessor {
 
         @Override
-        protected Instrumenter createInstrumenter(Object vm) {
-            return new Instrumenter(vm);
-        }
-
-        @Override
         protected boolean isInstrumentable(Object vm, Node node) {
             return super.isInstrumentable(vm, node);
         }
@@ -709,29 +706,15 @@ public final class Instrumenter {
 
         @SuppressWarnings("rawtypes")
         @Override
-        protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
-            return probe.getLanguage();
-        }
-
-        @SuppressWarnings("rawtypes")
-        @Override
         protected CallTarget parse(Class<? extends TruffleLanguage> languageClass, Source code, Node context, String... argumentNames) throws IOException {
             return super.parse(languageClass, code, context, argumentNames);
         }
 
-        @Override
-        protected void probeAST(RootNode rootNode) {
-            // Normally null vm argument; can be reflectively set for testing
-            Instrumenter instrumenter = super.getInstrumenter(testVM);
-            if (instrumenter != null) {
-                instrumenter.probeAST(rootNode);
-            }
-        }
     }
 
     static final AccessorInstrument ACCESSOR = new AccessorInstrument();
 
     // Normally null; set for testing where the Accessor hasn't been fully initialized
-    private static Object testVM = null;
+    @SuppressWarnings("unused") private static Object testVM = null;
 
 }

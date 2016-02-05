@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -29,14 +29,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import com.oracle.truffle.api.KillException;
+import com.oracle.truffle.api.QuitException;
+import com.oracle.truffle.api.debug.Debugger;
 import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.FrameInstance.FrameAccess;
 import com.oracle.truffle.api.frame.FrameSlot;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.instrument.ASTPrinter;
-import com.oracle.truffle.api.instrument.KillException;
-import com.oracle.truffle.api.instrument.QuitException;
-import com.oracle.truffle.api.instrument.StandardSyntaxTag;
 import com.oracle.truffle.api.instrument.Visualizer;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.Source;
@@ -209,7 +209,12 @@ public abstract class REPLHandler {
             if (ignoreCount == null) {
                 ignoreCount = 0;
             }
-            final BreakpointInfo breakpointInfo = replServer.setLineBreakpoint(DEFAULT_IGNORE_COUNT, source.createLineLocation(lineNumber), false);
+            BreakpointInfo breakpointInfo;
+            try {
+                breakpointInfo = replServer.setLineBreakpoint(DEFAULT_IGNORE_COUNT, source.createLineLocation(lineNumber), false);
+            } catch (IllegalStateException ex) {
+                return finishReplyFailed(reply, ex.getMessage());
+            }
             reply.put(REPLMessage.SOURCE_NAME, fileName);
             reply.put(REPLMessage.FILE_PATH, source.getPath());
             reply.put(REPLMessage.BREAKPOINT_ID, Integer.toString(breakpointInfo.getID()));
@@ -255,7 +260,7 @@ public abstract class REPLHandler {
         public REPLMessage[] receive(REPLMessage request, REPLServer replServer) {
             final REPLMessage reply = createReply();
             try {
-                replServer.setTagBreakpoint(DEFAULT_IGNORE_COUNT, StandardSyntaxTag.THROW, false);
+                replServer.setTagBreakpoint(DEFAULT_IGNORE_COUNT, Debugger.THROW_TAG, false);
                 return finishReplySucceeded(reply, "Breakpoint at any throw set");
             } catch (Exception ex) {
                 return finishReplyFailed(reply, ex);
@@ -269,7 +274,7 @@ public abstract class REPLHandler {
         public REPLMessage[] receive(REPLMessage request, REPLServer replServer) {
             final REPLMessage reply = createReply();
             try {
-                replServer.setTagBreakpoint(DEFAULT_IGNORE_COUNT, StandardSyntaxTag.THROW, true);
+                replServer.setTagBreakpoint(DEFAULT_IGNORE_COUNT, Debugger.THROW_TAG, true);
                 return finishReplySucceeded(reply, "One-shot breakpoint at any throw set");
             } catch (Exception ex) {
                 return finishReplyFailed(reply, ex);

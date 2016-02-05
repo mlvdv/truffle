@@ -39,8 +39,6 @@ import com.oracle.truffle.api.impl.Accessor;
 import com.oracle.truffle.api.impl.FindContextNode;
 import com.oracle.truffle.api.instrument.ASTProber;
 import com.oracle.truffle.api.instrument.Instrumenter;
-import com.oracle.truffle.api.instrument.KillException;
-import com.oracle.truffle.api.instrument.QuitException;
 import com.oracle.truffle.api.instrument.SyntaxTag;
 import com.oracle.truffle.api.instrument.Visualizer;
 import com.oracle.truffle.api.instrument.WrapperNode;
@@ -358,15 +356,13 @@ public abstract class TruffleLanguage<C> {
         private final InputStream in;
         private final OutputStream err;
         private final OutputStream out;
-        private final Instrumenter instrumenter;
 
-        Env(Object vm, TruffleLanguage<?> lang, OutputStream out, OutputStream err, InputStream in, Instrumenter instrumenter) {
+        Env(Object vm, TruffleLanguage<?> lang, OutputStream out, OutputStream err, InputStream in) {
             this.vm = vm;
             this.in = in;
             this.err = err;
             this.out = out;
             this.lang = lang;
-            this.instrumenter = instrumenter;
             this.langCtx = new LangCtx<>(lang, this);
         }
 
@@ -432,8 +428,10 @@ public abstract class TruffleLanguage<C> {
             return err;
         }
 
+        @SuppressWarnings("static-method")
+        @Deprecated
         public Instrumenter instrumenter() {
-            return instrumenter;
+            return null;
         }
     }
 
@@ -442,8 +440,8 @@ public abstract class TruffleLanguage<C> {
     @SuppressWarnings("rawtypes")
     private static final class AccessAPI extends Accessor {
         @Override
-        protected Env attachEnv(Object vm, TruffleLanguage<?> language, OutputStream stdOut, OutputStream stdErr, InputStream stdIn, Instrumenter instrumenter) {
-            Env env = new Env(vm, language, stdOut, stdErr, stdIn, instrumenter);
+        protected Env attachEnv(Object vm, TruffleLanguage<?> language, OutputStream stdOut, OutputStream stdErr, InputStream stdIn) {
+            Env env = new Env(vm, language, stdOut, stdErr, stdIn);
             return env;
         }
 

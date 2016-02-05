@@ -45,7 +45,6 @@ public class DefaultCallTarget implements RootCallTarget {
     protected DefaultCallTarget(RootNode function) {
         this.rootNode = function;
         this.rootNode.adoptChildren();
-        this.rootNode.applyInstrumentation();
     }
 
     @Override

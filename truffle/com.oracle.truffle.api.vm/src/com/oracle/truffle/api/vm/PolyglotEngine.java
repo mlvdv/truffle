@@ -56,8 +56,6 @@ import com.oracle.truffle.api.debug.SuspendedEvent;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.impl.Accessor;
-import com.oracle.truffle.api.instrument.Instrumenter;
-import com.oracle.truffle.api.instrument.Probe;
 import com.oracle.truffle.api.instrumentation.TruffleInstrument;
 import com.oracle.truffle.api.interop.ForeignAccess;
 import com.oracle.truffle.api.interop.TruffleObject;
@@ -114,10 +112,9 @@ public class PolyglotEngine {
     private final OutputStream out;
     private final EventConsumer<?>[] handlers;
     private final Map<String, Object> globals;
-    private final Instrumenter instrumenter; // old instrumentation
-    private final Object instrumentationHandler; // new instrumentation
+    private final Object instrumentationHandler;
     private final Map<String, Instrument> instruments;
-    private final Debugger debugger;
+    private Object debugger = null;
     private boolean disposed;
 
     static {
@@ -142,7 +139,6 @@ public class PolyglotEngine {
         this.handlers = null;
         this.globals = null;
         this.executor = null;
-        this.instrumenter = null;
         this.instrumentationHandler = null;
         this.debugger = null;
         this.instruments = null;
@@ -159,9 +155,6 @@ public class PolyglotEngine {
         this.handlers = handlers;
         this.initThread = Thread.currentThread();
         this.globals = new HashMap<>(globals);
-        this.instrumenter = SPI.createInstrumenter(this);
-        this.debugger = (Debugger) SPI.createDebugger(this, this.instrumenter);
-        // new instrumentation
         this.instrumentationHandler = SPI.createInstrumentationHandler(this, out, err, in);
         Map<String, Language> map = new HashMap<>();
         /* We want to create a language instance but per LanguageCache and not per mime type. */
@@ -174,6 +167,19 @@ public class PolyglotEngine {
         }
         this.langs = map;
         this.instruments = createAndAutostartDescriptors(InstrumentCache.load(getClass().getClassLoader()));
+        try {
+            Class.forName("com.oracle.truffle.api.debug.Debugger", true, Debugger.class.getClassLoader());
+        } catch (ClassNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+
+    private Object getDebugger() {
+        if (debugger == null) {
+            debugger = SPI.getDebugger(this);
+        }
+        return debugger;
     }
 
     private Map<String, Instrument> createAndAutostartDescriptors(List<InstrumentCache> instrumentCaches) {
@@ -476,7 +482,7 @@ public class PolyglotEngine {
 
     @SuppressWarnings("try")
     private Object evalImpl(TruffleLanguage<?>[] fillLang, Source s, Language l) throws IOException {
-        try (Closeable d = SPI.executionStart(this, -1, debugger, s)) {
+        try (Closeable d = SPI.executionStart(this, -1, getDebugger(), s)) {
             TruffleLanguage<?> langImpl = l.getImpl(true);
             fillLang[0] = langImpl;
             return SPI.eval(langImpl, s, l.cache);
@@ -487,7 +493,7 @@ public class PolyglotEngine {
     final Object invokeForeign(final Node foreignNode, VirtualFrame frame, final TruffleObject receiver) throws IOException {
         Object res;
         if (executor == null) {
-            try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, debugger, null)) {
+            try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, getDebugger(), null)) {
                 final Object[] args = ForeignAccess.getArguments(frame).toArray();
                 res = ForeignAccess.execute(foreignNode, frame, receiver, args);
             }
@@ -508,7 +514,7 @@ public class PolyglotEngine {
             @SuppressWarnings("try")
             @Override
             protected Object compute() throws IOException {
-                try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, debugger, null)) {
+                try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, getDebugger(), null)) {
                     final Object[] args = ForeignAccess.getArguments(materialized).toArray();
                     RootNode node = SymbolInvokerImpl.createTemporaryRoot(TruffleLanguage.class, foreignNode, receiver, args.length);
                     final CallTarget target = Truffle.getRuntime().createCallTarget(node);
@@ -939,7 +945,7 @@ public class PolyglotEngine {
         TruffleLanguage.Env getEnv(boolean create) {
             if (env == null && create) {
                 TruffleLanguage<?> impl = info.getImpl(true);
-                env = SPI.attachEnv(PolyglotEngine.this, impl, out, err, in, instrumenter);
+                env = SPI.attachEnv(PolyglotEngine.this, impl, out, err, in);
                 SPI.attachToInstrumentation(PolyglotEngine.this, impl, env);
             }
             return env;
@@ -974,9 +980,9 @@ public class PolyglotEngine {
         return null;
     }
 
-    TruffleLanguage<?> findLanguage(Probe probe) {
-        return findLanguage(SPI.findLanguage(probe));
-    }
+// TruffleLanguage<?> findLanguage(Probe probe) {
+// return findLanguage(SPI.findLanguage(probe));
+// }
 
     Env findEnv(Class<? extends TruffleLanguage> languageClazz) {
         for (Map.Entry<String, Language> entrySet : langs.entrySet()) {
@@ -1024,9 +1030,9 @@ public class PolyglotEngine {
         }
 
         @Override
-        protected Env attachEnv(Object obj, TruffleLanguage<?> language, OutputStream stdOut, OutputStream stdErr, InputStream stdIn, Instrumenter instrumenter) {
+        protected Env attachEnv(Object obj, TruffleLanguage<?> language, OutputStream stdOut, OutputStream stdErr, InputStream stdIn) {
             PolyglotEngine vm = (PolyglotEngine) obj;
-            return super.attachEnv(vm, language, stdOut, stdErr, stdIn, instrumenter);
+            return super.attachEnv(vm, language, stdOut, stdErr, stdIn);
         }
 
         @Override
@@ -1045,24 +1051,13 @@ public class PolyglotEngine {
         }
 
         @Override
-        protected Instrumenter createInstrumenter(Object vm) {
-            return super.createInstrumenter(vm);
-        }
-
-        @Override
         protected Object createInstrumentationHandler(Object vm, OutputStream out, OutputStream err, InputStream in) {
             return super.createInstrumentationHandler(vm, out, err, in);
         }
 
         @Override
-        protected Object createDebugger(Object vm, Instrumenter instrumenter) {
-            return super.createDebugger(vm, instrumenter);
-        }
-
-        @Override
-        protected Instrumenter getInstrumenter(Object obj) {
-            final PolyglotEngine vm = (PolyglotEngine) obj;
-            return vm.instrumenter;
+        protected Object getDebugger(Object vm) {
+            return super.getDebugger(vm);
         }
 
         @Override
@@ -1091,10 +1086,10 @@ public class PolyglotEngine {
             super.disposeInstrumentation(instrumentationHandler, key, cleanupRequired);
         }
 
-        @Override
-        protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
-            return super.findLanguage(probe);
-        }
+// @Override
+// protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
+// return super.findLanguage(probe);
+// }
 
         @Override
         protected Env findLanguage(Object obj, Class<? extends TruffleLanguage> languageClass) {
