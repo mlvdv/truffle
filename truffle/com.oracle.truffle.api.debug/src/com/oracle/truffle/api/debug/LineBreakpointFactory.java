@@ -82,7 +82,7 @@ import com.oracle.truffle.api.utilities.CyclicAssumption;
  */
 final class LineBreakpointFactory {
 
-    private static final boolean TRACE = true;
+    private static final boolean TRACE = false;
     private static final PrintStream OUT = System.out;
 
     private static final String TRACE_PREFIX = "LineBreaks";

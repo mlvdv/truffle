@@ -65,7 +65,7 @@ import com.oracle.truffle.sl.runtime.SLContext;
 @NodeInfo(language = "Simple Language", description = "The root of all Simple Language execution trees")
 public final class SLRootNode extends RootNode {
 
-    private static final boolean TRACE = true;
+    private static final boolean TRACE = false;
     private static final String TRACE_PREFIX = "SLRoot: ";
     private static final PrintStream OUT = System.out;
 

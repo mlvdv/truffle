@@ -67,7 +67,7 @@ public final class REPLServer {
         TAG
     }
 
-    private static final boolean TRACE = true;
+    private static final boolean TRACE = false;
     private static final String TRACE_PREFIX = "REPLSrv: ";
     private static final PrintStream OUT = System.out;
 

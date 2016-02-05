@@ -69,7 +69,7 @@ public final class Debugger extends TruffleInstrument {
     public static final String CALL_TAG = "debug-call-tag";
     public static final String THROW_TAG = "debug-throw-tag";
 
-    private static final boolean TRACE = true;
+    private static final boolean TRACE = false;
     private static final String TRACE_PREFIX = "Debug: ";
 
     private static final PrintStream OUT = System.out;
@@ -402,10 +402,8 @@ public final class Debugger extends TruffleInstrument {
      * @see Debugger#prepareStepInto(int)
      */
     private final class StepInto extends StepStrategy {
-// private TagInstrument beforeTagInstrument;
-// private TagInstrument afterTagInstrument;
         private int unfinishedStepCount;
-        private EventBinding stepBinding;
+        private EventBinding<?> stepBinding;
         private SourceSectionFilter stepFilter = SourceSectionFilter.newBuilder().tagIs(HALT_TAG).build();
 
         StepInto(int stepCount) {
