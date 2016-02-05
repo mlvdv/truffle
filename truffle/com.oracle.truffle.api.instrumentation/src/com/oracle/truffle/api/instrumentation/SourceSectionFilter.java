@@ -211,6 +211,26 @@ public final class SourceSectionFilter {
         return b.toString();
     }
 
+    public String toShortString() {
+        StringBuilder b = new StringBuilder("(");
+        String sep = "";
+        b.append("ROOT ");
+        for (EventFilterExpression expression : rootNodeExpressions) {
+            b.append(sep);
+            sep = " && ";
+            b.append(expression.toShortString());
+        }
+        b.append("; NODE ");
+        sep = "";
+        for (EventFilterExpression expression : nodeExpressions) {
+            b.append(sep);
+            sep = " && ";
+            b.append(expression.toShortString());
+        }
+        b.append(")");
+        return b.toString();
+    }
+
     // implementation
 
     boolean isInstrumentedRoot(SourceSection rootSourceSection) {
@@ -253,6 +273,10 @@ public final class SourceSectionFilter {
             return o.getOrder() - getOrder();
         }
 
+        public String toShortString() {
+            return toString();
+        }
+
         private static final class SourceIs extends EventFilterExpression {
 
             private final Source[] sources;
@@ -283,6 +307,20 @@ public final class SourceSectionFilter {
             @Override
             public String toString() {
                 return String.format("source is %s", Arrays.toString(sources));
+            }
+
+            @Override
+            public String toShortString() {
+                final StringBuilder sb = new StringBuilder("[");
+                String sep = "";
+                for (Source source : sources) {
+                    sb.append(sep);
+                    final String str = source.toString();
+                    sb.append(str.substring(str.lastIndexOf('.') + 1));
+                    sep = ",";
+                }
+                sb.append("]");
+                return String.format("sourceIn%s", sb.toString());
             }
         }
 
@@ -318,6 +356,11 @@ public final class SourceSectionFilter {
             @Override
             public String toString() {
                 return String.format("mime-type is one-of %s", Arrays.toString(mimeTypes));
+            }
+
+            @Override
+            public String toShortString() {
+                return String.format("mimeIn%s", Arrays.toString(mimeTypes));
             }
         }
 
@@ -366,6 +409,11 @@ public final class SourceSectionFilter {
             public String toString() {
                 return String.format("tag is one of %s", Arrays.toString(tags));
             }
+
+            @Override
+            public String toShortString() {
+                return String.format("tagIn%s", Arrays.toString(tags));
+            }
         }
 
         private static final class TagIsNot extends EventFilterExpression {
@@ -400,6 +448,11 @@ public final class SourceSectionFilter {
             @Override
             public String toString() {
                 return String.format("tag is not one of %s", Arrays.toString(tags));
+            }
+
+            @Override
+            public String toShortString() {
+                return String.format("tagNotIn%s", Arrays.toString(tags));
             }
         }
 
@@ -489,6 +542,11 @@ public final class SourceSectionFilter {
             public String toString() {
                 return String.format("index between %s-%s", start, end);
             }
+
+            @Override
+            public String toShortString() {
+                return String.format("ix=%s-%s", start, end);
+            }
         }
 
         private static final class LineIn extends EventFilterExpression {
@@ -531,7 +589,12 @@ public final class SourceSectionFilter {
 
             @Override
             public String toString() {
-                return String.format("index between %s-%s", start, end);
+                return String.format("line between %s-%s", start, end);
+            }
+
+            @Override
+            public String toShortString() {
+                return String.format("line=%s-%s", start, end);
             }
         }
 

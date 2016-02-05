@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2014, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -40,9 +40,13 @@
  */
 package com.oracle.truffle.sl.nodes;
 
+import java.io.PrintStream;
+
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.frame.FrameDescriptor;
 import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.instrument.ASTPrinter;
+import com.oracle.truffle.api.instrument.impl.DefaultASTPrinter;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.NodeInfo;
 import com.oracle.truffle.api.nodes.RootNode;
@@ -60,6 +64,16 @@ import com.oracle.truffle.sl.runtime.SLContext;
  */
 @NodeInfo(language = "Simple Language", description = "The root of all Simple Language execution trees")
 public final class SLRootNode extends RootNode {
+
+    private static final boolean TRACE = true;
+    private static final String TRACE_PREFIX = "SLRoot: ";
+    private static final PrintStream OUT = System.out;
+
+    private static void trace(String format, Object... args) {
+        if (TRACE) {
+            OUT.println(TRACE_PREFIX + String.format(format, args));
+        }
+    }
 
     /** The function body that is executed, and specialized during execution. */
     @Child private SLExpressionNode bodyNode;
@@ -79,6 +93,10 @@ public final class SLRootNode extends RootNode {
     @Override
     public Object execute(VirtualFrame frame) {
         assert SLLanguage.INSTANCE.findContext0(SLLanguage.INSTANCE.createFindContextNode0()) != null;
+        if (TRACE) {
+            final ASTPrinter printer = new DefaultASTPrinter();
+            trace(" execute: " + printer.printTreeToString(this, 99));
+        }
         return bodyNode.executeGeneric(frame);
     }
 

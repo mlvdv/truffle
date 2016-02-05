@@ -57,6 +57,7 @@ final class InstrumentationHandler {
 
     /* Enable trace output to stdout. */
     private static final boolean TRACE = Boolean.getBoolean("truffle.instrumentation.trace");
+    private static final String TRACE_PREFIX = "Instr.: ";
 
     /* All roots that were initialized (executed at least once) */
     private final Map<RootNode, Void> roots = Collections.synchronizedMap(new WeakHashMap<RootNode, Void>());
@@ -97,7 +98,7 @@ final class InstrumentationHandler {
 
     void disposeInstrumentation(Object key, boolean cleanupRequired) {
         if (TRACE) {
-            trace("Dispose instrumenter %n", key);
+            trace("BEGIN dispose instrumenter %n", key);
         }
         AbstractInstrumenter disposedInstrumenter = instrumentations.get(key);
         List<EventBinding<?>> disposedBindings = new ArrayList<>();
@@ -119,7 +120,7 @@ final class InstrumentationHandler {
         }
 
         if (TRACE) {
-            trace("Disposed instrumenter %n", key);
+            trace("END dispose instrumenter %n", key);
         }
     }
 
@@ -139,7 +140,7 @@ final class InstrumentationHandler {
 
     <T> EventBinding<T> addBinding(EventBinding<T> binding) {
         if (TRACE) {
-            trace("Adding binding %s, %s%n", binding.getFilter(), binding.getElement());
+            trace("BEGIN add " + describeBinding(binding));
         }
 
         this.bindings.add(binding);
@@ -152,7 +153,7 @@ final class InstrumentationHandler {
         }
 
         if (TRACE) {
-            trace("Added binding %s, %s%n", binding.getFilter(), binding.getElement());
+            trace("END add " + describeBinding(binding));
         }
 
         return binding;
@@ -160,7 +161,7 @@ final class InstrumentationHandler {
 
     void disposeBinding(EventBinding<?> binding) {
         if (TRACE) {
-            trace("Dispose binding %s, %s%n", binding.getFilter(), binding.getElement());
+            trace("BEGIN dispose " + describeBinding(binding));
         }
 
         this.bindings.remove(binding);
@@ -170,7 +171,7 @@ final class InstrumentationHandler {
         }
 
         if (TRACE) {
-            trace("Disposed binding %s, %s%n", binding.getFilter(), binding.getElement());
+            trace("END dispose " + describeBinding(binding));
         }
     }
 
@@ -178,7 +179,7 @@ final class InstrumentationHandler {
         EventContext context = probeNodeImpl.getContext();
         SourceSection sourceSection = context.getInstrumentedSourceSection();
         if (TRACE) {
-            trace("Lazy update for %s, tags %s%n", sourceSection, Arrays.toString(probeNodeImpl.getContext().getInstrumentedSourceSection().getTags()));
+            trace("BEGIN lazy update for %s, tags %s%n", sourceSection, Arrays.toString(probeNodeImpl.getContext().getInstrumentedSourceSection().getTags()));
         }
         EventChainNode root = null;
         EventChainNode parent = null;
@@ -186,7 +187,7 @@ final class InstrumentationHandler {
             EventBinding<?> binding = bindings.get(i);
             if (isInstrumented(probeNodeImpl, binding, sourceSection)) {
                 if (TRACE) {
-                    trace("Found binding %s, %s%n", binding.getFilter(), binding.getElement());
+                    trace("Found " + describeBinding(binding));
                 }
                 EventChainNode next = probeNodeImpl.createEventChainCallback(binding);
                 if (next == null) {
@@ -204,7 +205,7 @@ final class InstrumentationHandler {
         }
 
         if (TRACE) {
-            trace("Lazy updated for %s, tags %s%n", sourceSection, Arrays.toString(probeNodeImpl.getContext().getInstrumentedSourceSection().getTags()));
+            trace("ENDC lazy update for %s, tags %s%n", sourceSection, Arrays.toString(probeNodeImpl.getContext().getInstrumentedSourceSection().getTags()));
         }
         return root;
     }
@@ -214,13 +215,13 @@ final class InstrumentationHandler {
             if (!initialized) {
                 initialized = true;
                 if (TRACE) {
-                    trace("Initialize instrumentation%n");
+                    trace("BEGIN initialization%n");
                 }
                 for (AbstractInstrumenter instrumenter : instrumentations.values()) {
                     instrumenter.initialize();
                 }
                 if (TRACE) {
-                    trace("Initialized instrumentation%n");
+                    trace("END initialization%n");
                 }
             }
         }
@@ -340,12 +341,27 @@ final class InstrumentationHandler {
 
     private static void trace(String message, Object... args) {
         PrintStream out = System.out;
-        out.printf(message, args);
+        out.printf(TRACE_PREFIX + ": " + message, args);
+    }
+
+    private static String describeClass(Class<?> clazz) {
+        String name = clazz.getName();
+        return name.substring(name.lastIndexOf('.') + 1);
+    }
+
+    private static String describeObject(Object obj) {
+        String name = obj.toString();
+        int ix = name.lastIndexOf('.');
+        return name.substring(ix + 1);
+    }
+
+    private static String describeBinding(EventBinding<?> binding) {
+        return String.format("binding(filter=%s listener=%s)%n", binding.getFilter().toShortString(), binding.getElement());
     }
 
     private static void visitRoot(final RootNode root, final AbstractNodeVisitor visitor) {
         if (TRACE) {
-            trace("Visit root %s wrappers for %s%n", visitor, root.toString());
+            trace("BEGIN: visit root %s wrappers for %s%n", describeObject(visitor), root.toString());
         }
 
         if (visitor.shouldVisit(root)) {
@@ -357,7 +373,7 @@ final class InstrumentationHandler {
             });
         }
         if (TRACE) {
-            trace("Visited root %s wrappers for %s%n", visitor, root.toString());
+            trace("END: visit root %s wrappers for %s%n", describeObject(visitor), root.toString());
         }
     }
 
@@ -554,7 +570,7 @@ final class InstrumentationHandler {
         @Override
         void initialize() {
             if (TRACE) {
-                trace("Initialize instrumentation %s class %s %n", instrumentation, instrumentationClass);
+                trace("BEGIN initialize %s%n", describeClass(instrumentationClass));
             }
             assert instrumentation == null;
             try {
@@ -570,7 +586,7 @@ final class InstrumentationHandler {
                 return;
             }
             if (TRACE) {
-                trace("Initialized instrumentation %s class %s %n", instrumentation, instrumentationClass);
+                trace("END initialize %s%n", describeObject(instrumentation));
             }
         }
 
