@@ -47,6 +47,7 @@ import com.oracle.truffle.api.instrument.Visualizer;
 import com.oracle.truffle.api.instrument.impl.DefaultVisualizer;
 import com.oracle.truffle.api.instrumentation.InstrumentationUtils;
 import com.oracle.truffle.api.instrumentation.InstrumentationUtils.ASTPrinter;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils.LocationPrinter;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.LineLocation;
 import com.oracle.truffle.api.source.Source;
@@ -97,6 +98,7 @@ public final class REPLServer {
     private String statusPrefix;
     private final Map<String, REPLHandler> handlerMap = new HashMap<>();
     private ASTPrinter astPrinter = new InstrumentationUtils.ASTPrinter();
+    private LocationPrinter locationPrinter = new InstrumentationUtils.LocationPrinter();
 
     /** Languages sorted by name. */
     private final TreeSet<Language> engineLanguages = new TreeSet<>(new Comparator<Language>() {
@@ -222,6 +224,10 @@ public final class REPLServer {
 
     public ASTPrinter getASTPrinter() {
         return astPrinter;
+    }
+
+    public LocationPrinter getLocationPrinter() {
+        return locationPrinter;
     }
 
     void haltedAt(SuspendedEvent event) {

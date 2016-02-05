@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2014, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,7 +32,6 @@ import com.oracle.truffle.api.instrumentation.InstrumentableFactory.WrapperNode;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.NodeClass;
 import com.oracle.truffle.api.nodes.NodeFieldAccessor;
-import com.oracle.truffle.api.nodes.NodeUtil;
 import com.oracle.truffle.api.nodes.NodeFieldAccessor.NodeFieldKind;
 import com.oracle.truffle.api.source.SourceSection;
 
@@ -45,10 +44,7 @@ public final class InstrumentationUtils {
     }
 
     /**
-     * Access to AST-based debugging support, which is could be language implementation specific in
-     * the details chosen to be presented.
-     * <p>
-     * <strong>WARNING:</strong> this interface is under development and will change substantially.
+     * Language-agnostic textual display of AST structure, extensible for per-language subclasses.
      */
     public static class ASTPrinter {
 
@@ -73,7 +69,7 @@ public final class InstrumentationUtils {
          * @param maxDepth the maximum number of levels to print below the root
          * @param markNode a node to mark with a textual arrow prefix, if present.
          */
-        public String printTreeToString(Node node, int maxDepth, Node markNode) {
+        public String displayAST(Node node, int maxDepth, Node markNode) {
             StringWriter out = new StringWriter();
             printTree(new PrintWriter(out), node, maxDepth, markNode);
             return out.toString();
@@ -85,31 +81,56 @@ public final class InstrumentationUtils {
          * @param node the root node of the display.
          * @param maxDepth the maximum number of levels to print below the root
          */
-        public String printTreeToString(Node node, int maxDepth) {
-            return printTreeToString(node, maxDepth, null);
+        public String displayAST(Node node, int maxDepth) {
+            return displayAST(node, maxDepth, null);
         }
 
         /**
          * Creates a textual display describing a single (non-wrapper) node, including
          * instrumentation status: if Probed, and any tags.
          */
-        public String printNodeWithInstrumentation(Node node) {
+        public String displayNodeWithInstrumentation(Node node) {
             if (node == null) {
                 return "null";
             }
             final StringBuilder sb = new StringBuilder();
-            sb.append(nodeName(node));
+            sb.append(displayNodeName(node));
             sb.append("(");
-            sb.append(sourceInfo(node));
-            sb.append(NodeUtil.printSyntaxTags(node));
+            sb.append(displaySourceInfo(node));
+            sb.append(displayTags(node));
             sb.append(")");
             final Node parent = node.getParent();
             if (parent instanceof WrapperNode) {
                 final WrapperNode wrapper = (WrapperNode) parent;
                 sb.append(" Probed");
-                sb.append(NodeUtil.printSyntaxTags(wrapper));
+                sb.append(displayTags(wrapper));
             }
             return sb.toString();
+        }
+
+        /**
+         * Returns a string listing the tags, if any, associated with a node.
+         * <ul>
+         * <li>"[tag1, tag2, ...]" if tags have been applied;</li>
+         * <li>"[]" if the node supports tags, but none are present; and</li>
+         * <li>"" if the node does not support tags.</li>
+         * </ul>
+         */
+        protected String displayTags(final Object node) {
+            if ((node instanceof Node) && ((Node) node).getSourceSection() != null) {
+                String[] tags = ((Node) node).getSourceSection().getTags();
+                final StringBuilder sb = new StringBuilder();
+                String prefix = "";
+                sb.append("[");
+                for (String tag : tags) {
+                    sb.append(prefix);
+                    prefix = ",";
+                    sb.append(tag.toString());
+                }
+                sb.append("]");
+                return sb.toString();
+            }
+            return "";
         }
 
         protected void printTree(PrintWriter p, Node node, int maxDepth, Node markNode, int level) {
@@ -118,13 +139,13 @@ public final class InstrumentationUtils {
                 return;
             }
 
-            p.print(nodeName(node));
+            p.print(displayNodeName(node));
 
             p.print("(");
 
-            p.print(sourceInfo(node));
+            p.print(displaySourceInfo(node));
 
-            p.print(NodeUtil.printSyntaxTags(node));
+            p.print(displayTags(node));
 
             ArrayList<NodeFieldAccessor> childFields = new ArrayList<>();
 
@@ -209,11 +230,11 @@ public final class InstrumentationUtils {
             printNewLine(p, level, false);
         }
 
-        protected String nodeName(Node node) {
+        protected String displayNodeName(Node node) {
             return node.getClass().getSimpleName();
         }
 
-        protected String sourceInfo(Node node) {
+        protected String displaySourceInfo(Node node) {
             final SourceSection src = node.getSourceSection();
             if (src != null) {
                 if (src.getSource() == null) {
@@ -224,32 +245,28 @@ public final class InstrumentationUtils {
             }
             return "";
         }
+    }
 
-        /**
-         * Returns a string listing the {@linkplain SyntaxTag syntax tags}, if any, associated with
-         * a non-wrapper node.
-         * <ul>
-         * <li>"[tag1, tag2, ...]" if tags have been applied;</li>
-         * <li>"[]" if the node supports tags, but none are present; and</li>
-         * <li>"" if the node does not support tags.</li>
-         * </ul>
-         */
-        protected String printTags(final Object node) {
-            if ((node instanceof Node) && ((Node) node).getSourceSection() != null) {
-                String[] tags = ((Node) node).getSourceSection().getTags();
-                final StringBuilder sb = new StringBuilder();
-                String prefix = "";
-                sb.append("[");
-                for (String tag : tags) {
-                    sb.append(prefix);
-                    prefix = ",";
-                    sb.append(tag.toString());
-                }
-                sb.append("]");
-                return sb.toString();
+    /**
+     * Language-agnostic textual display of source location information.
+     */
+    public static class LocationPrinter {
+
+        public String displaySourceLocation(Node node) {
+
+            if (node == null) {
+                return "<unknown>";
             }
-            return "";
+            SourceSection section = node.getSourceSection();
+            boolean estimated = false;
+            if (section == null) {
+                section = node.getEncapsulatingSourceSection();
+                estimated = true;
+            }
+            if (section == null) {
+                return "<error: source location>";
+            }
+            return section.getShortDescription() + (estimated ? "~" : "");
         }
-
     }
 }

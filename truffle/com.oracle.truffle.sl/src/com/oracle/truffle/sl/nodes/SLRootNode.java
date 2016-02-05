@@ -95,7 +95,7 @@ public final class SLRootNode extends RootNode {
         assert SLLanguage.INSTANCE.findContext0(SLLanguage.INSTANCE.createFindContextNode0()) != null;
         if (TRACE) {
             final ASTPrinter printer = new InstrumentationUtils.ASTPrinter();
-            trace(" execute: " + printer.printTreeToString(this, 99));
+            trace(" execute: " + printer.displayAST(this, 99));
         }
         return bodyNode.executeGeneric(frame);
     }

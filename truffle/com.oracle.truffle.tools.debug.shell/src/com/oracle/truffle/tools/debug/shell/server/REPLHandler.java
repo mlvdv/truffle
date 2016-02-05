@@ -36,8 +36,9 @@ import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.FrameInstance.FrameAccess;
 import com.oracle.truffle.api.frame.FrameSlot;
 import com.oracle.truffle.api.frame.MaterializedFrame;
-import com.oracle.truffle.api.instrument.ASTPrinter;
 import com.oracle.truffle.api.instrument.Visualizer;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils.ASTPrinter;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils.LocationPrinter;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
@@ -124,11 +125,10 @@ public abstract class REPLHandler {
     }
 
     protected static final REPLMessage createFrameInfoMessage(final REPLServer replServer, int number, Node node) {
-        final Visualizer visualizer = replServer.getVisualizer();
         final REPLMessage infoMessage = new REPLMessage(REPLMessage.OP, REPLMessage.FRAME_INFO);
         infoMessage.put(REPLMessage.FRAME_NUMBER, Integer.toString(number));
-        infoMessage.put(REPLMessage.SOURCE_LOCATION, visualizer.displaySourceLocation(node));
-        infoMessage.put(REPLMessage.METHOD_NAME, visualizer.displayMethodName(node));
+        infoMessage.put(REPLMessage.SOURCE_LOCATION, replServer.getLocationPrinter().displaySourceLocation(node));
+        infoMessage.put(REPLMessage.METHOD_NAME, replServer.getVisualizer().displayMethodName(node));
 
         if (node != null) {
             SourceSection section = node.getSourceSection();
@@ -153,9 +153,9 @@ public abstract class REPLHandler {
             final ArrayList<REPLMessage> replies = new ArrayList<>();
             final Context currentContext = replServer.getCurrentContext();
             final List<FrameInstance> stack = currentContext.getStack();
-            replies.add(btMessage(0, currentContext.getNode(), visualizer));
+            replies.add(btMessage(0, currentContext.getNode(), visualizer, replServer.getLocationPrinter()));
             for (int i = 1; i <= stack.size(); i++) {
-                replies.add(btMessage(i, stack.get(i - 1).getCallNode(), visualizer));
+                replies.add(btMessage(i, stack.get(i - 1).getCallNode(), visualizer, replServer.getLocationPrinter()));
             }
             if (replies.size() > 0) {
                 return replies.toArray(new REPLMessage[0]);
@@ -164,11 +164,11 @@ public abstract class REPLHandler {
         }
     };
 
-    private static REPLMessage btMessage(int index, Node node, Visualizer visualizer) {
+    private static REPLMessage btMessage(int index, Node node, Visualizer visualizer, LocationPrinter locationPrinter) {
         final REPLMessage btMessage = new REPLMessage(REPLMessage.OP, REPLMessage.BACKTRACE);
         btMessage.put(REPLMessage.FRAME_NUMBER, Integer.toString(index));
         if (node != null) {
-            btMessage.put(REPLMessage.SOURCE_LOCATION, visualizer.displaySourceLocation(node));
+            btMessage.put(REPLMessage.SOURCE_LOCATION, locationPrinter.displaySourceLocation(node));
             btMessage.put(REPLMessage.METHOD_NAME, visualizer.displayMethodName(node));
             SourceSection section = node.getSourceSection();
             if (section == null) {
@@ -696,7 +696,7 @@ public abstract class REPLHandler {
         @Override
         public REPLMessage[] receive(REPLMessage request, REPLServer replServer) {
             final REPLMessage reply = createReply();
-            final ASTPrinter astPrinter = replServer.getVisualizer().getASTPrinter();
+            final ASTPrinter astPrinter = replServer.getASTPrinter();
             final String topic = request.get(REPLMessage.TOPIC);
             reply.put(REPLMessage.TOPIC, topic);
             Node node = replServer.getCurrentContext().getNodeAtHalt();
@@ -713,11 +713,11 @@ public abstract class REPLHandler {
                         while (node.getParent() != null) {
                             node = node.getParent();
                         }
-                        final String astText = astPrinter.printTreeToString(node, depth, replServer.getCurrentContext().getNodeAtHalt());
+                        final String astText = astPrinter.displayAST(node, depth, replServer.getCurrentContext().getNodeAtHalt());
                         return finishReplySucceeded(reply, astText);
                     case REPLMessage.SUBTREE:
                     case REPLMessage.SUB:
-                        final String subTreeText = astPrinter.printTreeToString(node, depth);
+                        final String subTreeText = astPrinter.displayAST(node, depth);
                         return finishReplySucceeded(reply, subTreeText);
                     default:
                         return finishReplyFailed(reply, "Unknown \"" + REPLMessage.TRUFFLE.toString() + "\" topic");
@@ -764,7 +764,7 @@ public abstract class REPLHandler {
 
             try {
                 final StringBuilder sb = new StringBuilder();
-                sb.append(replServer.getASTPrinter().printNodeWithInstrumentation(node));
+                sb.append(replServer.getASTPrinter().displayNodeWithInstrumentation(node));
 
                 final SourceSection sourceSection = node.getSourceSection();
                 if (sourceSection != null) {
