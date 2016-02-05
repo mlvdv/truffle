@@ -45,6 +45,8 @@ import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.instrument.Visualizer;
 import com.oracle.truffle.api.instrument.impl.DefaultVisualizer;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils.ASTPrinter;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.LineLocation;
 import com.oracle.truffle.api.source.Source;
@@ -67,7 +69,7 @@ public final class REPLServer {
         TAG
     }
 
-    private static final boolean TRACE = false;
+    private static final boolean TRACE = Boolean.getBoolean("truffle.debug.trace");
     private static final String TRACE_PREFIX = "REPLSrv: ";
     private static final PrintStream OUT = System.out;
 
@@ -94,6 +96,7 @@ public final class REPLServer {
     private SimpleREPLClient replClient = null;
     private String statusPrefix;
     private final Map<String, REPLHandler> handlerMap = new HashMap<>();
+    private ASTPrinter astPrinter = new InstrumentationUtils.ASTPrinter();
 
     /** Languages sorted by name. */
     private final TreeSet<Language> engineLanguages = new TreeSet<>(new Comparator<Language>() {
@@ -215,6 +218,10 @@ public final class REPLServer {
     @SuppressWarnings("static-method")
     public String getWelcome() {
         return "GraalVM MultiLanguage Debugger 0.9\n" + "Copyright (c) 2013-5, Oracle and/or its affiliates";
+    }
+
+    public ASTPrinter getASTPrinter() {
+        return astPrinter;
     }
 
     void haltedAt(SuspendedEvent event) {

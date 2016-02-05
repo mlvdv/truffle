@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2015, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2016, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -43,7 +43,6 @@ package com.oracle.truffle.sl.nodes.instrument;
 import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.RootCallTarget;
 import com.oracle.truffle.api.frame.FrameSlot;
-import com.oracle.truffle.api.instrument.ASTPrinter;
 import com.oracle.truffle.api.instrument.impl.DefaultVisualizer;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
@@ -55,17 +54,6 @@ import com.oracle.truffle.sl.runtime.SLNull;
  *
  */
 public class SLDefaultVisualizer extends DefaultVisualizer {
-
-    private final SLASTPrinter astPrinter;
-
-    public SLDefaultVisualizer() {
-        this.astPrinter = new SLASTPrinter();
-    }
-
-    @Override
-    public ASTPrinter getASTPrinter() {
-        return astPrinter;
-    }
 
     @Override
     public String displayMethodName(Node node) {

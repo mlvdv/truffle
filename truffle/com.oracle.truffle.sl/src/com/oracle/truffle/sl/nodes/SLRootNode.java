@@ -45,8 +45,8 @@ import java.io.PrintStream;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.frame.FrameDescriptor;
 import com.oracle.truffle.api.frame.VirtualFrame;
-import com.oracle.truffle.api.instrument.ASTPrinter;
-import com.oracle.truffle.api.instrument.impl.DefaultASTPrinter;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils;
+import com.oracle.truffle.api.instrumentation.InstrumentationUtils.ASTPrinter;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.NodeInfo;
 import com.oracle.truffle.api.nodes.RootNode;
@@ -65,7 +65,7 @@ import com.oracle.truffle.sl.runtime.SLContext;
 @NodeInfo(language = "Simple Language", description = "The root of all Simple Language execution trees")
 public final class SLRootNode extends RootNode {
 
-    private static final boolean TRACE = false;
+    private static final boolean TRACE = Boolean.getBoolean("truffle.sl-ast.trace");
     private static final String TRACE_PREFIX = "SLRoot: ";
     private static final PrintStream OUT = System.out;
 
@@ -94,7 +94,7 @@ public final class SLRootNode extends RootNode {
     public Object execute(VirtualFrame frame) {
         assert SLLanguage.INSTANCE.findContext0(SLLanguage.INSTANCE.createFindContextNode0()) != null;
         if (TRACE) {
-            final ASTPrinter printer = new DefaultASTPrinter();
+            final ASTPrinter printer = new InstrumentationUtils.ASTPrinter();
             trace(" execute: " + printer.printTreeToString(this, 99));
         }
         return bodyNode.executeGeneric(frame);

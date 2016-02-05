@@ -757,7 +757,6 @@ public abstract class REPLHandler {
         @Override
         public REPLMessage[] receive(REPLMessage request, REPLServer replServer) {
             final REPLMessage reply = createReply();
-            final ASTPrinter astPrinter = replServer.getVisualizer().getASTPrinter();
             final Node node = replServer.getCurrentContext().getNodeAtHalt();
             if (node == null) {
                 return finishReplyFailed(reply, "no current AST node");
@@ -765,7 +764,7 @@ public abstract class REPLHandler {
 
             try {
                 final StringBuilder sb = new StringBuilder();
-                sb.append(astPrinter.printNodeWithInstrumentation(node));
+                sb.append(replServer.getASTPrinter().printNodeWithInstrumentation(node));
 
                 final SourceSection sourceSection = node.getSourceSection();
                 if (sourceSection != null) {
