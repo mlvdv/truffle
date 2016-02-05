@@ -84,15 +84,15 @@ import com.oracle.truffle.api.utilities.CyclicAssumption;
  */
 final class TagBreakpointFactory {
 
-    private static final boolean TRACE = false;
+    private static final boolean TRACE = Boolean.getBoolean("truffle.debug.trace");
     private static final PrintStream OUT = System.out;
-
+    private static final String TRACE_PREFIX = "TagBreaks";
     private static final String BREAKPOINT_NAME = "TAG BREAKPOINT";
 
     @TruffleBoundary
     private static void trace(String format, Object... args) {
         if (TRACE) {
-            OUT.println(String.format("%s: %s", BREAKPOINT_NAME, String.format(format, args)));
+            OUT.println(String.format("%s: %s", TRACE_PREFIX, String.format(format, args)));
         }
     }
 

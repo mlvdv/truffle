@@ -205,7 +205,7 @@ final class InstrumentationHandler {
         }
 
         if (TRACE) {
-            trace("ENDC lazy update for %s, tags %s%n", sourceSection, Arrays.toString(probeNodeImpl.getContext().getInstrumentedSourceSection().getTags()));
+            trace("END lazy update for %s, tags %s%n", sourceSection, Arrays.toString(probeNodeImpl.getContext().getInstrumentedSourceSection().getTags()));
         }
         return root;
     }

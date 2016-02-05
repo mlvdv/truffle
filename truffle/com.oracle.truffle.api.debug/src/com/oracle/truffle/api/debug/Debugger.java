@@ -69,9 +69,8 @@ public final class Debugger extends TruffleInstrument {
     public static final String CALL_TAG = "debug-call-tag";
     public static final String THROW_TAG = "debug-throw-tag";
 
-    private static final boolean TRACE = false;
+    private static final boolean TRACE = Boolean.getBoolean("truffle.debug.trace");
     private static final String TRACE_PREFIX = "Debug: ";
-
     private static final PrintStream OUT = System.out;
 
     private static void trace(String format, Object... args) {
