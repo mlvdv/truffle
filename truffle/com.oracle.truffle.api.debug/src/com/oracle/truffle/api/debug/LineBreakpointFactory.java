@@ -41,12 +41,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import com.oracle.truffle.api.Assumption;
+import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
+import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.debug.Debugger.BreakpointCallback;
 import com.oracle.truffle.api.debug.Debugger.WarningLog;
 import com.oracle.truffle.api.frame.VirtualFrame;
+import com.oracle.truffle.api.instrument.ProbeInstrument;
+import com.oracle.truffle.api.instrument.StandardSyntaxTag;
 import com.oracle.truffle.api.instrumentation.EventBinding;
 import com.oracle.truffle.api.instrumentation.EventContext;
 import com.oracle.truffle.api.instrumentation.EventListener;
@@ -54,6 +58,7 @@ import com.oracle.truffle.api.instrumentation.EventNode;
 import com.oracle.truffle.api.instrumentation.EventNodeFactory;
 import com.oracle.truffle.api.instrumentation.Instrumenter;
 import com.oracle.truffle.api.instrumentation.SourceSectionFilter;
+import com.oracle.truffle.api.nodes.DirectCallNode;
 import com.oracle.truffle.api.nodes.InvalidAssumptionException;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.LineLocation;
@@ -283,6 +288,7 @@ final class LineBreakpointFactory {
         private Assumption enabledUnchangedAssumption;
 
         private Source conditionSource;
+        @SuppressWarnings("rawtypes") private Class<? extends TruffleLanguage> condLangClass;
 
         public LineBreakpointImpl(int ignoreCount, LineLocation lineLocation, boolean oneShot) {
             super(ENABLED_UNRESOLVED, ignoreCount, oneShot);
@@ -342,10 +348,10 @@ final class LineBreakpointFactory {
             binding.dispose();
             if (expr == null) {
                 conditionSource = null;
-                instrumenter.attachListener(query, new LineBreakListener());
+                binding = instrumenter.attachListener(query, new LineBreakListener());
             } else {
                 conditionSource = Source.fromText(expr, "breakpoint condition from text: " + expr);
-                instrumenter.attachFactory(query, this);
+                binding = instrumenter.attachFactory(query, this);
 
                 // De-instrument the Probes instrumented by this breakpoint
 // final ArrayList<Probe> probes = new ArrayList<>();
@@ -446,31 +452,57 @@ final class LineBreakpointFactory {
             }
         }
 
+        /* LineBreakpointFactory for breakpoint condition */
         public EventNode create(EventContext context) {
-            return new EventNode() {
-                @Override
-                protected void onEnter(VirtualFrame frame) {
-                    // TODO
+            assert conditionSource != null;
+            final Node instrumentedNode = context.getInstrumentedNode();
+            if (condLangClass == null) {
+                condLangClass = Debugger.ACCESSOR.findLanguage(instrumentedNode);
+                if (condLangClass == null) {
+                    warningLog.addWarning("Unable to find language for condition: \"" + conditionSource.getCode() + "\" at " + lineLocation.toString());
+                    return null;
                 }
-            };
-        }
-
-        @SuppressWarnings("unused")
-        public void onExecution(Node node, VirtualFrame vFrame, Object result) {  // TODO
-            if (result instanceof Boolean) {
-                final boolean condition = (Boolean) result;
-                if (TRACE) {
-                    trace("breakpoint condition = %b  %s", condition, getShortDescription());
-                }
-                if (condition) {
-                    nodeEnter(node, vFrame);
-                }
-            } else {
-                onFailure(node, vFrame, new RuntimeException("breakpint failure = non-boolean condition " + result.toString()));
+            }
+            try {
+                final CallTarget callTarget = Debugger.ACCESSOR.parse(condLangClass, conditionSource, instrumentedNode, new String[0]);
+                final DirectCallNode callNode = Truffle.getRuntime().createDirectCallNode(callTarget);
+                return new BreakpointConditionEventNode(instrumentedNode, callNode);
+            } catch (IOException e) {
+                warningLog.addWarning("Unable to parse breakpoint condition: \"" + conditionSource.getCode() + "\" at " + lineLocation.toString());
+                return null;
             }
         }
 
-        public void onFailure(Node node, VirtualFrame vFrame, Exception ex) {
+        private class BreakpointConditionEventNode extends EventNode {
+            @Child DirectCallNode callNode;
+            final Node instrumentedNode;
+
+            BreakpointConditionEventNode(Node node, DirectCallNode callNode) {
+                this.instrumentedNode = node;
+                this.callNode = callNode;
+            }
+
+            @Override
+            protected void onEnter(VirtualFrame frame) {
+                try {
+                    Object result = callNode.call(frame, new Object[0]);
+                    if (result instanceof Boolean) {
+                        if (TRACE) {
+                            trace("breakpoint cond=%b %s %s", result, conditionSource.getCode(), getShortDescription());
+                        }
+                        if ((Boolean) result) {
+                            nodeEnter(instrumentedNode, frame); // as if unconditional
+                        }
+                    } else {
+                        conditionFailure(instrumentedNode, frame, new RuntimeException("breakpoint condition failure: non-boolean result " + conditionSource.getCode()));
+                    }
+                } catch (Exception ex) {
+                    conditionFailure(instrumentedNode, frame, new RuntimeException("breakpoint condition failure: " + conditionSource.getCode() + ex.getMessage()));
+                }
+            }
+        }
+
+        private void conditionFailure(Node node, VirtualFrame vFrame, Exception ex) {
             addExceptionWarning(ex);
             if (TRACE) {
                 trace("breakpoint failure = %s  %s", ex, getShortDescription());

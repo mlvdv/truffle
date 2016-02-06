@@ -33,8 +33,10 @@ import java.util.Collections;
 import java.util.List;
 
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
+import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.KillException;
 import com.oracle.truffle.api.Truffle;
+import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.FrameInstance.FrameAccess;
 import com.oracle.truffle.api.frame.FrameInstanceVisitor;
@@ -975,10 +977,11 @@ public final class Debugger extends TruffleInstrument {
             return newestDebugger;
         }
 
-// @Override
-// protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
-// return super.findLanguage(probe);
-// }
+        @SuppressWarnings("rawtypes")
+        @Override
+        protected Class<? extends TruffleLanguage> findLanguage(Node node) {
+            return super.findLanguage(node);
+        }
 
         @Override
         protected void dispatchEvent(Object vm, Object event) {
@@ -988,6 +991,12 @@ public final class Debugger extends TruffleInstrument {
         @Override
         protected Object evalInContext(Object vm, Object ev, String code, Node node, MaterializedFrame frame) throws IOException {
             return super.evalInContext(vm, ev, code, node, frame);
+        }
+
+        @SuppressWarnings("rawtypes")
+        @Override
+        protected CallTarget parse(Class<? extends TruffleLanguage> languageClass, Source code, Node context, String... argumentNames) throws IOException {
+            return super.parse(languageClass, code, context, argumentNames);
         }
     }
 

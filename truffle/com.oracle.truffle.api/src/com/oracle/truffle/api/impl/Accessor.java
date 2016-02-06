@@ -204,10 +204,10 @@ public abstract class Accessor {
         return NODES.findLanguage(n);
     }
 
-// @SuppressWarnings("rawtypes")
-// protected Class<? extends TruffleLanguage> findLanguage(Probe probe) {
-// return INSTRUMENT.findLanguage(probe);
-// }
+    @SuppressWarnings("rawtypes")
+    protected Class<? extends TruffleLanguage> findLanguage(Node node) {
+        return NODES.findLanguage(node);
+    }
 
     @SuppressWarnings("rawtypes")
     protected Env findLanguage(Object known, Class<? extends TruffleLanguage> languageClass) {
