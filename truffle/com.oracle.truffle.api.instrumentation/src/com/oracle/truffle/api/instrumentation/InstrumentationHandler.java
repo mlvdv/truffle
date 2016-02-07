@@ -57,7 +57,7 @@ final class InstrumentationHandler {
 
     /* Enable trace output to stdout. */
     private static final boolean TRACE = Boolean.getBoolean("truffle.instrumentation.trace");
-    private static final String TRACE_PREFIX = "Instr.: ";
+    private static final String TRACE_PREFIX = "Instr.";
 
     /* All roots that were initialized (executed at least once) */
     private final Map<RootNode, Void> roots = Collections.synchronizedMap(new WeakHashMap<RootNode, Void>());

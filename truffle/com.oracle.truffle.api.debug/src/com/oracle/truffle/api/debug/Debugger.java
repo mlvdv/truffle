@@ -847,8 +847,6 @@ public final class Debugger extends TruffleInstrument {
                 final String reason = haltReason == null ? "" : haltReason + "";
                 final String where = before ? "BEFORE" : "AFTER";
                 contextTrace("HALT %s : (%s) stack base=%d", where, reason, contextStackBase);
-                contextTrace("CURRENT STACK:");
-                // printStack(OUT);
             }
 
             try {

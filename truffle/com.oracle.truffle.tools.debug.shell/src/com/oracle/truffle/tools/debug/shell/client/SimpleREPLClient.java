@@ -445,7 +445,7 @@ public class SimpleREPLClient implements REPLClient {
             final int fileLineCount = whereSource.getLineCount();
             final String code = whereSource.getCode();
 
-            writer.println("Frame " + selectedFrameNumber + ": " + whereSource.getShortName() + "\n");
+            writer.println("Frame " + selectedFrameNumber + " in " + whereSource.getShortName());
             final int halfListSize = listSize / 2;
             final int startLineNumber = Math.max(1, whereLineNumber - halfListSize);
             final int lastLineNumber = Math.min(startLineNumber + listSize - 1, fileLineCount);

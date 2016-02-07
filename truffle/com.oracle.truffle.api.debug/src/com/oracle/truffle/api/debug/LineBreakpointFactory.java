@@ -530,6 +530,9 @@ final class LineBreakpointFactory {
 
             @Override
             public void onEnter(EventContext context, VirtualFrame frame) {
+                if (TRACE) {
+                    trace("hit breakpoint " + getShortDescription());
+                }
                 LineBreakpointImpl.this.nodeEnter(context.getInstrumentedNode(), frame);
             }
 

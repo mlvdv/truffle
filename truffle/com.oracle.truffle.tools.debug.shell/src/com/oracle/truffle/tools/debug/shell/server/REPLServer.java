@@ -143,7 +143,7 @@ public final class REPLServer {
         @Override
         protected void on(SuspendedEvent ev) {
             if (TRACE) {
-                trace("BEGIN on %s", describeObject(ev));
+                trace(" on %s", describeObject(ev));
             }
             REPLServer.this.haltedAt(ev);
             if (TRACE) {
