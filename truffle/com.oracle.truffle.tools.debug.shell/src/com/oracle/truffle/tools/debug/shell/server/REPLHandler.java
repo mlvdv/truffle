@@ -663,8 +663,9 @@ public abstract class REPLHandler {
             if (repeat == null) {
                 repeat = 1;
             }
+            final String countMessage = repeat == 1 ? "" : "<" + repeat + ">";
             replServer.getCurrentContext().prepareStepInto(repeat);
-            return finishReplySucceeded(reply, "StepInto <" + repeat + "> enabled");
+            return finishReplySucceeded(reply, "StepInto " + countMessage + " enabled");
         }
     };
 
@@ -672,8 +673,14 @@ public abstract class REPLHandler {
 
         @Override
         public REPLMessage[] receive(REPLMessage request, REPLServer replServer) {
-            replServer.getCurrentContext().prepareStepOut();
-            return finishReplySucceeded(createReply(), "StepOut enabled");
+            final REPLMessage reply = createReply();
+            Integer repeat = request.getIntValue(REPLMessage.REPEAT);
+            if (repeat == null) {
+                repeat = 1;
+            }
+            final String countMessage = repeat == 1 ? "" : "<" + repeat + ">";
+            replServer.getCurrentContext().prepareStepOut(repeat);
+            return finishReplySucceeded(reply, "StepOut " + countMessage + " enabled");
         }
     };
 
@@ -686,8 +693,9 @@ public abstract class REPLHandler {
             if (repeat == null) {
                 repeat = 1;
             }
+            final String countMessage = repeat == 1 ? "" : "<" + repeat + ">";
             replServer.getCurrentContext().prepareStepOver(repeat);
-            return finishReplySucceeded(reply, "StepOver <" + repeat + "> enabled");
+            return finishReplySucceeded(reply, "StepOver " + countMessage + " enabled");
         }
     };
 
