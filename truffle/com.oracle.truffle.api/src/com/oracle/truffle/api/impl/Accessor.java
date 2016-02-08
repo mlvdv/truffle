@@ -110,6 +110,11 @@ public abstract class Accessor {
         new Node(null) {
         }.getRootNode();
 
+        try {
+            Class.forName("com.oracle.truffle.api.debug.Debugger", true, Accessor.class.getClassLoader());
+        } catch (ClassNotFoundException ex) {
+            throw new IllegalStateException(ex);
+        }
     }
 
     protected Accessor() {
@@ -269,10 +274,6 @@ public abstract class Accessor {
     // new instrumentation
     protected Object createInstrumentationHandler(Object vm, OutputStream out, OutputStream err, InputStream in) {
         return INSTRUMENTHANDLER.createInstrumentationHandler(vm, out, err, in);
-    }
-
-    protected Object getDebugger(Object vm) {
-        return DEBUG == null ? null : DEBUG.getDebugger(vm);
     }
 
     private static Reference<Object> previousVM = new WeakReference<>(null);

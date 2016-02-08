@@ -120,6 +120,7 @@ public final class REPLServer {
     public REPLServer(String defaultMIMEType, Visualizer visualizer) {
         this.visualizer = visualizer == null ? new DefaultVisualizer() : visualizer;
         this.engine = PolyglotEngine.newBuilder().onEvent(onHalted).onEvent(onExec).build();
+        this.db = Debugger.find(this.engine);
         engineLanguages.addAll(engine.getLanguages().values());
         if (engineLanguages.size() == 0) {
             throw new RuntimeException("No language implementations installed");

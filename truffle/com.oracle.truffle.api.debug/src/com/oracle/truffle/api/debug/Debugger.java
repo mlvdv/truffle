@@ -38,6 +38,7 @@ import com.oracle.truffle.api.KillException;
 import com.oracle.truffle.api.QuitException;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
+import com.oracle.truffle.api.debug.impl.DebuggerInstrument;
 import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.FrameInstance.FrameAccess;
 import com.oracle.truffle.api.frame.FrameInstanceVisitor;
@@ -50,12 +51,11 @@ import com.oracle.truffle.api.instrumentation.EventContext;
 import com.oracle.truffle.api.instrumentation.EventListener;
 import com.oracle.truffle.api.instrumentation.Instrumenter;
 import com.oracle.truffle.api.instrumentation.SourceSectionFilter;
-import com.oracle.truffle.api.instrumentation.TruffleInstrument;
-import com.oracle.truffle.api.instrumentation.TruffleInstrument.Registration;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.source.LineLocation;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
+import com.oracle.truffle.api.vm.PolyglotEngine;
 
 /**
  * Represents debugging related state of a {@link com.oracle.truffle.api.vm.PolyglotEngine}.
@@ -63,11 +63,7 @@ import com.oracle.truffle.api.source.SourceSection;
  * {@link ExecutionEvent#getDebugger()} events, once {@link com.oracle.truffle.api.debug debugging
  * is turned on}.
  */
-@Registration(id = Debugger.ID, autostart = true)
-public final class Debugger extends TruffleInstrument {
-
-    public static final String ID = "debugger";
-
+public final class Debugger {
     public static final String BLOCK_TAG = "debug-BLOCK";
 
     public static final String CALL_TAG = "debug-CALL";
@@ -83,16 +79,52 @@ public final class Debugger extends TruffleInstrument {
     private static final SourceSectionFilter CALL_FILTER = SourceSectionFilter.newBuilder().tagIs(CALL_TAG).build();
     private static final SourceSectionFilter HALT_FILTER = SourceSectionFilter.newBuilder().tagIs(HALT_TAG).build();
 
+    /** Finds debugger associated with given engine. There is at most one
+     * debugger associated with any {@link PolyglotEngine}. One can access it
+     * by calling this static method. Once the debugger is initialized, events
+     * like {@link SuspendedEvent} or {@link ExecutionEvent} are delivered to
+     * {@link com.oracle.truffle.api.vm.PolyglotEngine.Builder#onEvent(com.oracle.truffle.api.vm.EventConsumer) registered event handlers}
+     * whenever an important event (related to debugging) occurs in the 
+     * engine.
+     * 
+     * 
+     * @param engine the engine to find debugger for
+     * @return an instance of associated debugger, never <code>null</code>
+     */
+    public static Debugger find(PolyglotEngine engine) {
+        return find(engine, true);
+    }
+
+    private static final DebuggerInstrument.Factory FACTORY = new DebuggerInstrument.Factory() {
+        @Override
+        public Debugger create(PolyglotEngine engine, Instrumenter instrumenter) {
+            return new Debugger(engine, instrumenter);
+        }
+    };
+
+    private static Debugger find(PolyglotEngine engine, boolean create) {
+        PolyglotEngine.Instrument instrument = engine.getInstruments().get(DebuggerInstrument.ID);
+        if (instrument == null) {
+            throw new IllegalStateException();
+        }
+        final DebuggerInstrument debugInstrument = instrument.lookup(DebuggerInstrument.class);
+        return debugInstrument.getDebugger(engine, create ? FACTORY : null);
+    }
+
     private static void trace(String format, Object... args) {
         if (TRACE) {
             OUT.println(TRACE_PREFIX + String.format(format, args));
         }
     }
 
-    private Instrumenter instrumenter;
-
-    private Object vm = null;  // TODO
+    private final PolyglotEngine engine;
+    private final Instrumenter instrumenter;
     private Source lastSource;
+
+    Debugger(PolyglotEngine engine, Instrumenter instrumenter) {
+        this.engine = engine;
+        this.instrumenter = instrumenter;
+    }
 
     interface BreakpointCallback {
 
@@ -140,32 +172,6 @@ public final class Debugger extends TruffleInstrument {
      * Head of the stack of executions.
      */
     private DebugExecutionContext debugContext;
-
-    @Override
-    protected void onCreate(Env env, Instrumenter originalInstrumenter) {
-
-        if (TRACE) {
-            trace("BEGIN onCreate()");
-        }
-
-        this.instrumenter = originalInstrumenter;
-        Source.setFileCaching(true);
-
-        // Initialize execution context stack
-        debugContext = new DebugExecutionContext(null, null, 0);
-        debugContext.setStrategy(0, new Continue());
-        debugContext.contextTrace("START EXEC DEFAULT");
-
-        this.lineBreaks = new LineBreakpointFactory(this, instrumenter, breakpointCallback, warningLog);
-        this.tagBreaks = new TagBreakpointFactory(this, breakpointCallback, warningLog);
-
-        newestDebugger = this;  // TODO (mlvdv) hack
-
-        if (TRACE) {
-            trace("END onCreate()");
-        }
-
-    }
 
     /**
      * Sets a breakpoint to halt at a source line.
@@ -885,7 +891,7 @@ public final class Debugger extends TruffleInstrument {
 
             try {
                 // Pass control to the debug client with current execution suspended
-                ACCESSOR.dispatchEvent(vm, new SuspendedEvent(Debugger.this, haltedNode, haltedFrame, contextStack, recentWarnings));
+                ACCESSOR.dispatchEvent(engine, new SuspendedEvent(Debugger.this, haltedNode, haltedFrame, contextStack, recentWarnings));
                 // Debug client finished normally, execution resumes
                 // Presume that the client has set a new strategy (or default to Continue)
                 running = true;
@@ -944,9 +950,6 @@ public final class Debugger extends TruffleInstrument {
     }
 
     void executionStarted(Object theVM, int depth, Source source) {
-        if (this.vm == null) {
-            this.vm = theVM;
-        }
         Source execSource = source;
         if (execSource == null) {
             execSource = lastSource;
@@ -957,7 +960,7 @@ public final class Debugger extends TruffleInstrument {
         debugContext = new DebugExecutionContext(execSource, debugContext, depth);
         prepareContinue(depth);
         debugContext.contextTrace("START EXEC ");
-        ACCESSOR.dispatchEvent(vm, new ExecutionEvent(this));
+        ACCESSOR.dispatchEvent(engine, new ExecutionEvent(this));
     }
 
     void executionEnded() {
@@ -980,9 +983,9 @@ public final class Debugger extends TruffleInstrument {
      */
     Object evalInContext(SuspendedEvent ev, String code, FrameInstance frameInstance) throws IOException {
         if (frameInstance == null) {
-            return ACCESSOR.evalInContext(vm, ev, code, debugContext.haltedNode, debugContext.haltedFrame);
+            return ACCESSOR.evalInContext(engine, ev, code, debugContext.haltedNode, debugContext.haltedFrame);
         } else {
-            return ACCESSOR.evalInContext(vm, ev, code, frameInstance.getCallNode(), frameInstance.getFrame(FrameAccess.MATERIALIZE, true).materialize());
+            return ACCESSOR.evalInContext(engine, ev, code, frameInstance.getCallNode(), frameInstance.getFrame(FrameAccess.MATERIALIZE, true).materialize());
         }
     }
 
@@ -990,14 +993,14 @@ public final class Debugger extends TruffleInstrument {
 
         @Override
         protected Closeable executionStart(Object vm, int currentDepth, final Object d, Source s) {
-            if (d == null) {
+            final Debugger debugger = find((PolyglotEngine)vm, false);
+            if (debugger == null) {
                 return new Closeable() {
                     @Override
                     public void close() throws IOException {
                     }
                 };
             }
-            final Debugger debugger = (Debugger) d;
             debugger.executionStarted(vm, currentDepth, s);
             return new Closeable() {
                 @Override
@@ -1005,11 +1008,6 @@ public final class Debugger extends TruffleInstrument {
                     debugger.executionEnded();
                 }
             };
-        }
-
-        @Override
-        protected Object getDebugger(Object vm) {
-            return newestDebugger;
         }
 
         @SuppressWarnings("rawtypes")
@@ -1037,6 +1035,4 @@ public final class Debugger extends TruffleInstrument {
 
     // registers into Accessor.DEBUG
     static final AccessorDebug ACCESSOR = new AccessorDebug();
-
-    static Debugger newestDebugger = null;
 }

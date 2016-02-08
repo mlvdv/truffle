@@ -50,9 +50,6 @@ import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.TruffleLanguage.Env;
 import com.oracle.truffle.api.TruffleLanguage.Registration;
 import com.oracle.truffle.api.TruffleOptions;
-import com.oracle.truffle.api.debug.Debugger;
-import com.oracle.truffle.api.debug.ExecutionEvent;
-import com.oracle.truffle.api.debug.SuspendedEvent;
 import com.oracle.truffle.api.frame.MaterializedFrame;
 import com.oracle.truffle.api.frame.VirtualFrame;
 import com.oracle.truffle.api.impl.Accessor;
@@ -114,7 +111,6 @@ public class PolyglotEngine {
     private final Map<String, Object> globals;
     private final Object instrumentationHandler;
     private final Map<String, Instrument> instruments;
-    private Object debugger = null;
     private boolean disposed;
 
     static {
@@ -140,7 +136,6 @@ public class PolyglotEngine {
         this.globals = null;
         this.executor = null;
         this.instrumentationHandler = null;
-        this.debugger = null;
         this.instruments = null;
     }
 
@@ -167,19 +162,6 @@ public class PolyglotEngine {
         }
         this.langs = map;
         this.instruments = createAndAutostartDescriptors(InstrumentCache.load(getClass().getClassLoader()));
-        try {
-            Class.forName("com.oracle.truffle.api.debug.Debugger", true, Debugger.class.getClassLoader());
-        } catch (ClassNotFoundException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-    }
-
-    private Object getDebugger() {
-        if (debugger == null) {
-            debugger = SPI.getDebugger(this);
-        }
-        return debugger;
     }
 
     private Map<String, Instrument> createAndAutostartDescriptors(List<InstrumentCache> instrumentCaches) {
@@ -482,7 +464,7 @@ public class PolyglotEngine {
 
     @SuppressWarnings("try")
     private Object evalImpl(TruffleLanguage<?>[] fillLang, Source s, Language l) throws IOException {
-        try (Closeable d = SPI.executionStart(this, -1, getDebugger(), s)) {
+        try (Closeable d = SPI.executionStart(this, -1, null, s)) {
             TruffleLanguage<?> langImpl = l.getImpl(true);
             fillLang[0] = langImpl;
             return SPI.eval(langImpl, s, l.cache);
@@ -493,7 +475,7 @@ public class PolyglotEngine {
     final Object invokeForeign(final Node foreignNode, VirtualFrame frame, final TruffleObject receiver) throws IOException {
         Object res;
         if (executor == null) {
-            try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, getDebugger(), null)) {
+            try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, null, null)) {
                 final Object[] args = ForeignAccess.getArguments(frame).toArray();
                 res = ForeignAccess.execute(foreignNode, frame, receiver, args);
             }
@@ -514,7 +496,7 @@ public class PolyglotEngine {
             @SuppressWarnings("try")
             @Override
             protected Object compute() throws IOException {
-                try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, getDebugger(), null)) {
+                try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, null, null)) {
                     final Object[] args = ForeignAccess.getArguments(materialized).toArray();
                     RootNode node = SymbolInvokerImpl.createTemporaryRoot(TruffleLanguage.class, foreignNode, receiver, args.length);
                     final CallTarget target = Truffle.getRuntime().createCallTarget(node);
@@ -601,21 +583,21 @@ public class PolyglotEngine {
     @SuppressWarnings("unchecked")
     void dispatch(Object ev) {
         Class type = ev.getClass();
-        if (type == SuspendedEvent.class) {
-            dispatchSuspendedEvent((SuspendedEvent) ev);
+        if (type.getSimpleName().equals("SuspendedEvent")) {
+            dispatchSuspendedEvent(ev);
         }
-        if (type == ExecutionEvent.class) {
-            dispatchExecutionEvent((ExecutionEvent) ev);
+        if (type.getSimpleName().equals("ExecutionEvent")) {
+            dispatchExecutionEvent(ev);
         }
         dispatch(type, ev);
     }
 
     @SuppressWarnings("unused")
-    void dispatchSuspendedEvent(SuspendedEvent event) {
+    void dispatchSuspendedEvent(Object event) {
     }
 
     @SuppressWarnings("unused")
-    void dispatchExecutionEvent(ExecutionEvent event) {
+    void dispatchExecutionEvent(Object event) {
     }
 
     @SuppressWarnings("unchecked")
@@ -757,7 +739,7 @@ public class PolyglotEngine {
                 @SuppressWarnings("try")
                 @Override
                 protected Object compute() throws IOException {
-                    try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, debugger, null)) {
+                    try (final Closeable c = SPI.executionStart(PolyglotEngine.this, -1, null, null)) {
                         List<Object> arr = new ArrayList<>();
                         arr.addAll(Arrays.asList(args));
                         for (;;) {
@@ -931,7 +913,7 @@ public class PolyglotEngine {
         @SuppressWarnings("try")
         public Value getGlobalObject() {
             checkThread();
-            try (Closeable d = SPI.executionStart(PolyglotEngine.this, -1, debugger, null)) {
+            try (Closeable d = SPI.executionStart(PolyglotEngine.this, -1, null, null)) {
                 Object res = SPI.languageGlobal(getEnv(true));
                 return res == null ? null : new Value(new TruffleLanguage[]{info.getImpl(true)}, res);
             } catch (IOException ex) {
@@ -1055,11 +1037,6 @@ public class PolyglotEngine {
         @Override
         protected Object createInstrumentationHandler(Object vm, OutputStream out, OutputStream err, InputStream in) {
             return super.createInstrumentationHandler(vm, out, err, in);
-        }
-
-        @Override
-        protected Object getDebugger(Object vm) {
-            return super.getDebugger(vm);
         }
 
         @Override
