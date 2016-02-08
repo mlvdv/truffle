@@ -29,38 +29,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.oracle.truffle.api.instrumentation.AbstractInstrumentationTest;
 import com.oracle.truffle.api.instrumentation.EventContext;
 import com.oracle.truffle.api.instrumentation.InstrumentationTestLanguage;
-import com.oracle.truffle.api.instrumentation.examples.DebuggerExample.Callback;
-import com.oracle.truffle.api.instrumentation.examples.DebuggerExample.DebuggerFrontEnd;
+import com.oracle.truffle.api.instrumentation.examples.DebuggerController.Callback;
 import com.oracle.truffle.api.source.Source;
+import com.oracle.truffle.api.vm.PolyglotEngine.Instrument;
+import static org.junit.Assert.assertNotNull;
 
 public final class DebuggerExampleTest extends AbstractInstrumentationTest {
-
-    private static DebuggerExample debugger;
-
-    public static class TestFrontEnd implements DebuggerFrontEnd {
-        public void onAttach(DebuggerExample example) {
-            DebuggerExampleTest.debugger = example;
-        }
-
-        public void onDispose() {
-            DebuggerExampleTest.debugger = null;
-        }
-    }
-
-    @BeforeClass
-    public static void installFrontEnd() {
-        DebuggerExample.installFrontEnd(TestFrontEnd.class);
-    }
+    private DebuggerController debugger;
 
     @Before
     public void setupDebugger() throws IOException {
-        engine.getInstruments().get(DebuggerExample.ID).setEnabled(true);
+        Instrument instrument = engine.getInstruments().get(DebuggerController.ID);
+        instrument.setEnabled(true);
+        debugger = instrument.lookup(DebuggerController.class);
+        assertNotNull("Debugger interface found", debugger);
         assertEvalOut("", ""); // ensure debugger gets loaded
     }
 
@@ -68,7 +55,8 @@ public final class DebuggerExampleTest extends AbstractInstrumentationTest {
     public void testBreakpoint() throws IOException {
         final AtomicBoolean breakpointHit = new AtomicBoolean();
         debugger.installBreakpoint(1, new Callback() {
-            public void halted(DebuggerExample d, EventContext haltedAt) {
+            @Override
+            public void halted(DebuggerController d, EventContext haltedAt) {
                 Assert.assertTrue(containsTag(haltedAt.getInstrumentedSourceSection().getTags(), InstrumentationTestLanguage.STATEMENT));
                 Assert.assertEquals(1, haltedAt.getInstrumentedSourceSection().getStartLine());
                 breakpointHit.set(true);
@@ -91,22 +79,22 @@ public final class DebuggerExampleTest extends AbstractInstrumentationTest {
 
         final AtomicBoolean allStepped = new AtomicBoolean();
         debugger.installBreakpoint(7, new Callback() {
-            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+            public void halted(DebuggerController debugger, EventContext haltedAt) {
                 assertLineAt(haltedAt, 7);
                 debugger.stepInto(new Callback() {
-                    public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                    public void halted(DebuggerController debugger, EventContext haltedAt) {
                         assertLineAt(haltedAt, 4);
                         debugger.stepInto(new Callback() {
-                            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                            public void halted(DebuggerController debugger, EventContext haltedAt) {
                                 assertLineAt(haltedAt, 5);
                                 debugger.stepInto(new Callback() {
-                                    public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                                    public void halted(DebuggerController debugger, EventContext haltedAt) {
                                         assertLineAt(haltedAt, 2);
                                         debugger.stepInto(new Callback() {
-                                            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                                            public void halted(DebuggerController debugger, EventContext haltedAt) {
                                                 assertLineAt(haltedAt, 6);
                                                 debugger.stepInto(new Callback() {
-                                                    public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                                                    public void halted(DebuggerController debugger, EventContext haltedAt) {
                                                         throw new AssertionError();
                                                     }
                                                 });
@@ -144,17 +132,17 @@ public final class DebuggerExampleTest extends AbstractInstrumentationTest {
 
         final AtomicBoolean allStepped = new AtomicBoolean();
         debugger.installBreakpoint(4, new Callback() {
-            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+            public void halted(DebuggerController debugger, EventContext haltedAt) {
                 assertLineAt(haltedAt, 4);
                 debugger.stepOver(new Callback() {
-                    public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                    public void halted(DebuggerController debugger, EventContext haltedAt) {
                         assertLineAt(haltedAt, 5);
                         debugger.stepOver(new Callback() {
-                            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                            public void halted(DebuggerController debugger, EventContext haltedAt) {
                                 assertLineAt(haltedAt, 6);
                                 allStepped.set(true);
                                 debugger.stepOver(new Callback() {
-                                    public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                                    public void halted(DebuggerController debugger, EventContext haltedAt) {
                                         throw new AssertionError();
                                     }
                                 });
@@ -181,13 +169,16 @@ public final class DebuggerExampleTest extends AbstractInstrumentationTest {
 
         final AtomicBoolean allStepped = new AtomicBoolean();
         debugger.installBreakpoint(2, new Callback() {
-            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+            @Override
+            public void halted(DebuggerController debugger, EventContext haltedAt) {
                 assertLineAt(haltedAt, 2);
                 debugger.stepOut(new Callback() {
-                    public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                    @Override
+                    public void halted(DebuggerController debugger, EventContext haltedAt) {
                         assertLineAt(haltedAt, 6);
                         debugger.stepOver(new Callback() {
-                            public void halted(DebuggerExample debugger, EventContext haltedAt) {
+                            @Override
+                            public void halted(DebuggerController debugger, EventContext haltedAt) {
                                 throw new AssertionError();
                             }
                         });

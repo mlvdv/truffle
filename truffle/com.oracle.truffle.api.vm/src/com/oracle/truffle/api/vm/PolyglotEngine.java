@@ -818,6 +818,10 @@ public class PolyglotEngine {
             return enabled;
         }
 
+        public <T> T lookup(Class<T> type) {
+            return SPI.getInstrumentationHandlerService(instrumentationHandler, this, type);
+        }
+
         public void setEnabled(final boolean enabled) {
             checkThread();
             if (this.enabled != enabled) {
@@ -852,7 +856,6 @@ public class PolyglotEngine {
         public String toString() {
             return "Instrument [id=" + getId() + ", name=" + getName() + ", version=" + getVersion() + ", enabled=" + enabled + "]";
         }
-
     }
 
     /**
@@ -946,7 +949,6 @@ public class PolyglotEngine {
             if (env == null && create) {
                 TruffleLanguage<?> impl = info.getImpl(true);
                 env = SPI.attachEnv(PolyglotEngine.this, impl, out, err, in);
-                SPI.attachToInstrumentation(PolyglotEngine.this, impl, env);
             }
             return env;
         }
@@ -1067,8 +1069,8 @@ public class PolyglotEngine {
         }
 
         @Override
-        protected void attachToInstrumentation(Object vm, TruffleLanguage<?> impl, Env env) {
-            super.attachToInstrumentation(vm, impl, env);
+        protected <T> T getInstrumentationHandlerService(Object vm, Object key, Class<T> type) {
+            return super.getInstrumentationHandlerService(vm, key, type);
         }
 
         @Override

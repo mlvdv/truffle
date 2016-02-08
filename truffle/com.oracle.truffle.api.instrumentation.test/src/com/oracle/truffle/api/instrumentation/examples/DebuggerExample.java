@@ -24,9 +24,6 @@
  */
 package com.oracle.truffle.api.instrumentation.examples;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
@@ -43,41 +40,26 @@ import com.oracle.truffle.api.instrumentation.TruffleInstrument;
 import com.oracle.truffle.api.instrumentation.TruffleInstrument.Registration;
 
 /**
- * This is an example how debugging can be implemented using the instrumentation framework. Debugger
- * front-ends can be used by installing a {@link DebuggerFrontEnd} implementation with
- * {@link #installFrontEnd(Class)}.
+ * This is an example how debugging can be implemented using the instrumentation framework. This
+ * class itself shall be hidden in an implementation package. The actual API that
+ * {@link DebuggerExampleTest clients} can use to talk to the debugger is exposed in a separate
+ * {@link DebuggerController} interface.
  */
-@Registration(id = DebuggerExample.ID)
-public final class DebuggerExample extends TruffleInstrument {
-
-    public static final String ID = "example-debugger";
-
+@Registration(id = DebuggerController.ID)
+public final class DebuggerExample extends TruffleInstrument implements DebuggerController {
     private Instrumenter instrumenter;
     private EventBinding<?> stepping;
 
-    private final List<DebuggerFrontEnd> frontEnds = new ArrayList<>();
     private Callback currentStatementCallback;
 
     @Override
     protected void onCreate(Env env, Instrumenter originalInstrumenter) {
         assert this.instrumenter == null;
         this.instrumenter = originalInstrumenter;
-        for (Class<? extends DebuggerFrontEnd> frontEnd : installedFrontEnds) {
-            try {
-                DebuggerFrontEnd frontEndInstance = frontEnd.newInstance();
-                frontEndInstance.onAttach(this);
-                frontEnds.add(frontEndInstance);
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
     }
 
     @Override
     protected void onDispose(Env env) {
-        for (DebuggerFrontEnd debugger : frontEnds) {
-            debugger.onDispose();
-        }
     }
 
     public boolean isStepping() {
@@ -194,7 +176,7 @@ public final class DebuggerExample extends TruffleInstrument {
             this.delegate = delegate;
         }
 
-        public void halted(DebuggerExample debugger, EventContext haltedAt) {
+        public void halted(DebuggerController debugger, EventContext haltedAt) {
             if (shouldHalt()) {
                 currentStatementCallback = null;
                 delegate.halted(debugger, haltedAt);
@@ -248,28 +230,6 @@ public final class DebuggerExample extends TruffleInstrument {
         protected boolean shouldHalt() {
             return true;
         }
-
-    }
-
-    public interface Callback {
-
-        void halted(DebuggerExample debugger, EventContext haltedAt);
-
-    }
-
-    // in a production debugger this should be implemented using a proper service provider interface
-
-    private static final List<Class<? extends DebuggerFrontEnd>> installedFrontEnds = new ArrayList<>();
-
-    public static void installFrontEnd(Class<? extends DebuggerFrontEnd> frontEndClass) {
-        installedFrontEnds.add(frontEndClass);
-    }
-
-    public interface DebuggerFrontEnd {
-
-        void onAttach(DebuggerExample example);
-
-        void onDispose();
 
     }
 

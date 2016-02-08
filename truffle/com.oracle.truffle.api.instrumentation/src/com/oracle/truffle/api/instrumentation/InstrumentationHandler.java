@@ -49,6 +49,7 @@ import com.oracle.truffle.api.nodes.NodeVisitor;
 import com.oracle.truffle.api.nodes.RootNode;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
+import java.util.Set;
 
 /**
  * Central coordinator class for the Truffle instrumentation framework. Allocated once per engine.
@@ -124,8 +125,8 @@ final class InstrumentationHandler {
         }
     }
 
-    void attachLanguage(Object context, InstrumentationLanguage<Object> language) {
-        addInstrumenter(context, new LanguageInstrumenter<>(language, context));
+    Instrumenter forLanguage(TruffleLanguage.Env context, TruffleLanguage<?> language) {
+        return new LanguageInstrumenter<>(language, context);
     }
 
     void detachLanguage(Object context) {
@@ -413,6 +414,11 @@ final class InstrumentationHandler {
         return null;
     }
 
+    private <T> T lookup(Object key, Class<T> type) {
+        AbstractInstrumenter value = instrumentations.get(key);
+        return value == null ? null : value.lookup(this, type);
+    }
+
     private abstract class AbstractNodeVisitor implements NodeVisitor {
 
         abstract boolean shouldVisit(RootNode root);
@@ -611,19 +617,29 @@ final class InstrumentationHandler {
             }
         }
 
+        @Override
+        <T> T lookup(InstrumentationHandler handler, Class<T> type) {
+            if (type.isAssignableFrom(getInstrumentationClass())) {
+                if (instrumentation == null) {
+                    handler.initialize();
+                }
+                return type.cast(instrumentation);
+            }
+            return null;
+        }
+
     }
 
     /**
      * Instrumenter implementation for use in {@link TruffleLanguage}.
      */
     final class LanguageInstrumenter<T> extends AbstractInstrumenter {
+        @SuppressWarnings("unused") private final TruffleLanguage.Env env;
+        private final TruffleLanguage<T> language;
 
-        private final T context;
-        private final InstrumentationLanguage<T> language;
-
-        LanguageInstrumenter(InstrumentationLanguage<T> language, T context) {
+        LanguageInstrumenter(TruffleLanguage<T> language, TruffleLanguage.Env env) {
             this.language = language;
-            this.context = context;
+            this.env = env;
         }
 
         @Override
@@ -637,12 +653,17 @@ final class InstrumentationHandler {
 
         @Override
         void initialize() {
-            language.installInstrumentations(context, this);
+            // language.installInstrumentations(env, this);
         }
 
         @Override
         void dispose() {
             // nothing todo
+        }
+
+        @Override
+        <S> S lookup(InstrumentationHandler handler, Class<S> type) {
+            return null;
         }
     }
 
@@ -656,6 +677,8 @@ final class InstrumentationHandler {
         abstract void initialize();
 
         abstract void dispose();
+
+        abstract <T> T lookup(InstrumentationHandler handler, Class<T> type);
 
         void disposeBinding(EventBinding<?> binding) {
             InstrumentationHandler.this.disposeBinding(binding);
@@ -712,12 +735,16 @@ final class InstrumentationHandler {
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        protected void attachToInstrumentation(Object vm, TruffleLanguage<?> impl, com.oracle.truffle.api.TruffleLanguage.Env env) {
-            if (impl instanceof InstrumentationLanguage) {
-                InstrumentationHandler instrumentationHandler = (InstrumentationHandler) ACCESSOR.getInstrumentationHandler(vm);
-                instrumentationHandler.attachLanguage(findContext(env), (InstrumentationLanguage<Object>) impl);
-            }
+        protected void collectEnvServices(Set<Object> collectTo, Object vm, TruffleLanguage<?> impl, TruffleLanguage.Env env) {
+            InstrumentationHandler instrumentationHandler = (InstrumentationHandler) ACCESSOR.getInstrumentationHandler(vm);
+            Instrumenter instrumenter = instrumentationHandler.forLanguage(env, impl);
+            collectTo.add(instrumenter);
+        }
+
+        @Override
+        protected <T> T getInstrumentationHandlerService(Object vm, Object key, Class<T> type) {
+            InstrumentationHandler instrumentationHandler = (InstrumentationHandler) vm;
+            return instrumentationHandler.lookup(key, type);
         }
 
         @Override
