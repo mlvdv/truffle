@@ -51,6 +51,10 @@ public final class SLREPL {
 
     public static void main(String[] args) {
 
+        System.setProperty("truffle.instrumentation.trace", "false");
+        System.setProperty("truffle.debug.trace", "false");
+        System.setProperty("truffle.sl-ast.trace", "false");
+
         // Cheating for the prototype: start from SL, rather than from the client.
         final REPLServer server = new REPLServer("application/x-sl", new SLDefaultVisualizer());
         server.start();
