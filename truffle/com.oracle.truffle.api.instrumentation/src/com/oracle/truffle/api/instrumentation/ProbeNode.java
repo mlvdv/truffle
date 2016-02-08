@@ -298,6 +298,8 @@ public final class ProbeNode extends Node {
         final void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
             try {
                 innerOnReturnValue(context, frame, result);
+            } catch (QuitException | KillException ex) {
+                throw ex;
             } catch (Throwable t) {
                 if (!seenException) {
                     CompilerDirectives.transferToInterpreterAndInvalidate();
@@ -320,6 +322,8 @@ public final class ProbeNode extends Node {
         final void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
             try {
                 innerOnReturnExceptional(context, frame, exception);
+            } catch (QuitException | KillException ex) {
+                throw ex;
             } catch (Throwable t) {
                 if (!seenException) {
                     CompilerDirectives.transferToInterpreterAndInvalidate();
