@@ -449,23 +449,23 @@ public final class Debugger extends TruffleInstrument {
                 }
 
                 public void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
-                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                    doHalt(context, frame.materialize());
                 }
 
                 public void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
-                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                    doHalt(context, frame.materialize());
                 }
             });
         }
 
         @TruffleBoundary
-        private void doHalt(Node node, MaterializedFrame mFrame) {
+        private void doHalt(EventContext context, MaterializedFrame frame) {
             --unfinishedStepCount;
             strategyTrace(null, "HALT AFTER unfinished steps=%d", unfinishedStepCount);
             if (currentStackDepth() < stackDepth) {
                 // HALT: just "stepped out"
                 if (unfinishedStepCount <= 0) {
-                    halt(node, mFrame, false);
+                    halt(context.getInstrumentedNode(), frame, false);
                 }
             }
             strategyTrace("RESUME AFTER", "");
@@ -495,10 +495,24 @@ public final class Debugger extends TruffleInstrument {
      */
     private final class StepOut extends StepStrategy {
 
-        // private TagInstrument afterTagInstrument;
+        private EventBinding<?> afterCallBinding;
 
         @Override
         protected void setStrategy(final int stackDepth) {
+            afterCallBinding = instrumenter.attachListener(CALL_FILTER, new EventListener() {
+
+                public void onEnter(EventContext context, VirtualFrame frame) {
+                }
+
+                public void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
+                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                }
+
+                public void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
+                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                }
+            });
+        }
 
 // afterTagInstrument = instrumenter.attach(CALL_TAG, new StandardAfterInstrumentListener() {
 //
@@ -526,11 +540,10 @@ public final class Debugger extends TruffleInstrument {
 // strategyTrace("RESUME AFTER", "");
 // }
 // }, "Debugger StepOut");
-        }
 
         @Override
         protected void unsetStrategy() {
-// afterTagInstrument.dispose();
+            afterCallBinding.dispose();
         }
     }
 
