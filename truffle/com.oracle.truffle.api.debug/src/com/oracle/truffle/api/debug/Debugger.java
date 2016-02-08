@@ -67,13 +67,20 @@ public final class Debugger extends TruffleInstrument {
 
     public static final String ID = "debugger";
 
-    public static final String HALT_TAG = "debug-halt-tag";
-    public static final String CALL_TAG = "debug-call-tag";
-    public static final String THROW_TAG = "debug-throw-tag";
+    public static final String BLOCK_TAG = "debug-BLOCK";
+
+    public static final String CALL_TAG = "debug-CALL";
+    public static final String EXPR_TAG = "debug-EXPR";
+    public static final String HALT_TAG = "debug-HALT";
+    public static final String ROOT_TAG = "debug-ROOT";
+    public static final String THROW_TAG = "debug-THROW";
 
     private static final boolean TRACE = Boolean.getBoolean("truffle.debug.trace");
     private static final String TRACE_PREFIX = "Debug: ";
     private static final PrintStream OUT = System.out;
+
+    private static final SourceSectionFilter CALL_FILTER = SourceSectionFilter.newBuilder().tagIs(CALL_TAG).build();
+    private static final SourceSectionFilter HALT_FILTER = SourceSectionFilter.newBuilder().tagIs(HALT_TAG).build();
 
     private static void trace(String format, Object... args) {
         if (TRACE) {
@@ -404,8 +411,9 @@ public final class Debugger extends TruffleInstrument {
      */
     private final class StepInto extends StepStrategy {
         private int unfinishedStepCount;
-        private EventBinding<?> stepBinding;
-        private SourceSectionFilter stepFilter = SourceSectionFilter.newBuilder().tagIs(HALT_TAG).build();
+        private int stackDepth;
+        private EventBinding<?> beforeHaltBinding;
+        private EventBinding<?> afterCallBinding;
 
         StepInto(int stepCount) {
             super();
@@ -414,7 +422,8 @@ public final class Debugger extends TruffleInstrument {
 
         @Override
         protected void setStrategy(final int stackDepth) {
-            stepBinding = instrumenter.attachListener(stepFilter, new EventListener() {
+            this.stackDepth = stackDepth;
+            beforeHaltBinding = instrumenter.attachListener(HALT_FILTER, new EventListener() {
 
                 public void onEnter(EventContext context, VirtualFrame frame) {
                     // HALT: just before statement
@@ -432,59 +441,42 @@ public final class Debugger extends TruffleInstrument {
 
                 public void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
                 }
-
             });
+            // When stepping causes a return, expected behavior is to halt again at the call
+            afterCallBinding = instrumenter.attachListener(CALL_FILTER, new EventListener() {
+
+                public void onEnter(EventContext context, VirtualFrame frame) {
+                }
+
+                public void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
+                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                }
+
+                public void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
+                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                }
+            });
+        }
+
+        @TruffleBoundary
+        private void doHalt(Node node, MaterializedFrame mFrame) {
+            --unfinishedStepCount;
+            strategyTrace(null, "HALT AFTER unfinished steps=%d", unfinishedStepCount);
+            if (currentStackDepth() < stackDepth) {
+                // HALT: just "stepped out"
+                if (unfinishedStepCount <= 0) {
+                    halt(node, mFrame, false);
+                }
+            }
+            strategyTrace("RESUME AFTER", "");
         }
 
         @Override
         protected void unsetStrategy() {
-            stepBinding.dispose();
+            beforeHaltBinding.dispose();
+            afterCallBinding.dispose();
         }
     }
-
-// beforeTagInstrument = instrumenter.attach(STEPPING_TAG, new StandardBeforeInstrumentListener() {
-// @TruffleBoundary
-// @Override
-// public void onEnter(Probe probe, Node node, VirtualFrame vFrame) {
-// // HALT: just before statement
-// --unfinishedStepCount;
-// strategyTrace("HALT BEFORE", "unfinished steps=%d", unfinishedStepCount);
-// // Should run in fast path
-// if (unfinishedStepCount <= 0) {
-// halt(node, vFrame.materialize(), true);
-// }
-// strategyTrace("RESUME BEFORE", "");
-// }
-// }, "Debugger StepInto");
-//
-// afterTagInstrument = instrumenter.attach(CALL_TAG, new StandardAfterInstrumentListener() {
-//
-// public void onReturnVoid(Probe probe, Node node, VirtualFrame vFrame) {
-// doHalt(node, vFrame.materialize());
-// }
-//
-// public void onReturnValue(Probe probe, Node node, VirtualFrame vFrame, Object result) {
-// doHalt(node, vFrame.materialize());
-// }
-//
-// public void onReturnExceptional(Probe probe, Node node, VirtualFrame vFrame, Throwable exception)
-// {
-// doHalt(node, vFrame.materialize());
-// }
-//
-// @TruffleBoundary
-// private void doHalt(Node node, MaterializedFrame mFrame) {
-// --unfinishedStepCount;
-// strategyTrace(null, "HALT AFTER unfinished steps=%d", unfinishedStepCount);
-// if (currentStackDepth() < stackDepth) {
-// // HALT: just "stepped out"
-// if (unfinishedStepCount <= 0) {
-// halt(node, mFrame, false);
-// }
-// }
-// strategyTrace("RESUME AFTER", "");
-// }
-// }, "Debugger StepInto");
 
     /**
      * Strategy: execution to nearest enclosing call site.
