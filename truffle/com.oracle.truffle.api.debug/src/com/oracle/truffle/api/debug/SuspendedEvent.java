@@ -163,8 +163,30 @@ public final class SuspendedEvent {
      * mode.</li>
      * </ul>
      */
+    @SuppressWarnings("deprecation")
+    @Deprecated
     public void prepareStepOut() {
         debugger.prepareStepOut();
+    }
+
+    /**
+     * Prepare to execute in StepOut mode when guest language program execution resumes. In this
+     * mode:
+     * <ul>
+     * <li>User breakpoints are enabled.</li>
+     * <li>Execution will continue until either:
+     * <ol>
+     * <li>execution arrives at the nearest enclosing call site on the stack, <strong>or</strong></li>
+     * <li>execution completes.</li>
+     * </ol>
+     * <li>StepOut mode persists only through one resumption, and reverts by default to Continue
+     * mode.</li>
+     * </ul>
+     *
+     * @param stepCount the number of times to perform StepOut before halting
+     */
+    public void prepareStepOut(int stepCount) {
+        debugger.prepareStepOut(stepCount);
     }
 
     /**

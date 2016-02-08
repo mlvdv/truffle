@@ -32,9 +32,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.CallTarget;
+import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.KillException;
+import com.oracle.truffle.api.QuitException;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleLanguage;
 import com.oracle.truffle.api.frame.FrameInstance;
@@ -262,9 +263,31 @@ public final class Debugger extends TruffleInstrument {
      * mode.</li>
      * </ul>
      */
+    @Deprecated
     @TruffleBoundary
     void prepareStepOut() {
-        debugContext.setStrategy(new StepOut());
+        debugContext.setStrategy(new StepOut(1));
+    }
+
+    /**
+     * Prepare to execute in StepOut mode when guest language program execution resumes. In this
+     * mode:
+     * <ul>
+     * <li>User breakpoints are enabled.</li>
+     * <li>Execution will continue until either:
+     * <ol>
+     * <li>execution arrives at the nearest enclosing call site on the stack, <strong>or</strong></li>
+     * <li>execution completes.</li>
+     * </ol>
+     * <li>StepOut mode persists only through one resumption, and reverts by default to Continue
+     * mode.</li>
+     * </ul>
+     *
+     * @param stepCount the number of times to perform StepOut before halting
+     */
+    @TruffleBoundary
+    void prepareStepOut(int stepCount) {
+        debugContext.setStrategy(new StepOut(stepCount));
     }
 
     /**
@@ -411,7 +434,7 @@ public final class Debugger extends TruffleInstrument {
      */
     private final class StepInto extends StepStrategy {
         private int unfinishedStepCount;
-        private int stackDepth;
+        private int startStackDepth;
         private EventBinding<?> beforeHaltBinding;
         private EventBinding<?> afterCallBinding;
 
@@ -421,19 +444,24 @@ public final class Debugger extends TruffleInstrument {
         }
 
         @Override
-        protected void setStrategy(final int stackDepth) {
-            this.stackDepth = stackDepth;
+        protected void setStrategy(int startStackDepth) {
+            this.startStackDepth = startStackDepth;
+            strategyTrace("STRATEGY", "repeat=%d stack=%d", unfinishedStepCount, startStackDepth);
             beforeHaltBinding = instrumenter.attachListener(HALT_FILTER, new EventListener() {
 
                 public void onEnter(EventContext context, VirtualFrame frame) {
                     // HALT: just before statement
                     --unfinishedStepCount;
-                    strategyTrace("HALT BEFORE", "unfinished steps=%d", unfinishedStepCount);
+                    if (TRACE) {
+                        strategyTrace("HALT BEFORE", "stack=%d,%d unfinished=%d", StepInto.this.startStackDepth, currentStackDepth(), unfinishedStepCount);
+                    }
                     // Should run in fast path
                     if (unfinishedStepCount <= 0) {
                         halt(context.getInstrumentedNode(), frame.materialize(), true);
                     }
-                    strategyTrace("RESUME BEFORE", "");
+                    if (TRACE) {
+                        strategyTrace("RESUME BEFORE", "stack=%d,%d", StepInto.this.startStackDepth, currentStackDepth());
+                    }
                 }
 
                 public void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
@@ -449,26 +477,29 @@ public final class Debugger extends TruffleInstrument {
                 }
 
                 public void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
-                    doHalt(context, frame.materialize());
+                    haltAfter(context, frame.materialize());
                 }
 
                 public void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
-                    doHalt(context, frame.materialize());
+                    haltAfter(context, frame.materialize());
                 }
             });
         }
 
         @TruffleBoundary
-        private void doHalt(EventContext context, MaterializedFrame frame) {
+        private void haltAfter(EventContext context, MaterializedFrame frame) {
             --unfinishedStepCount;
-            strategyTrace(null, "HALT AFTER unfinished steps=%d", unfinishedStepCount);
-            if (currentStackDepth() < stackDepth) {
+            final int currentStackDepth = currentStackDepth();
+            strategyTrace(null, "HALT AFTER stack=%d,%d unfinished=%d", startStackDepth, currentStackDepth, unfinishedStepCount);
+            if (currentStackDepth < startStackDepth) {
                 // HALT: just "stepped out"
                 if (unfinishedStepCount <= 0) {
                     halt(context.getInstrumentedNode(), frame, false);
                 }
             }
-            strategyTrace("RESUME AFTER", "");
+            if (TRACE) {
+                strategyTrace("RESUME AFTER", "stack=%d,%d", startStackDepth, currentStackDepth());
+            }
         }
 
         @Override
@@ -495,51 +526,49 @@ public final class Debugger extends TruffleInstrument {
      */
     private final class StepOut extends StepStrategy {
 
+        private int unfinishedStepCount;
+        private int startStackDepth;
         private EventBinding<?> afterCallBinding;
 
+        StepOut(int stepCount) {
+            super();
+            this.unfinishedStepCount = stepCount;
+        }
+
         @Override
-        protected void setStrategy(final int stackDepth) {
+        protected void setStrategy(final int startStackDepth) {
+            this.startStackDepth = startStackDepth;
+            strategyTrace("STRATEGY", "repeat=%d stack=%d", unfinishedStepCount, startStackDepth);
             afterCallBinding = instrumenter.attachListener(CALL_FILTER, new EventListener() {
 
                 public void onEnter(EventContext context, VirtualFrame frame) {
                 }
 
                 public void onReturnValue(EventContext context, VirtualFrame frame, Object result) {
-                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                    haltAfter(context, frame.materialize());
                 }
 
                 public void onReturnExceptional(EventContext context, VirtualFrame frame, Throwable exception) {
-                    halt(context.getInstrumentedNode(), frame.materialize(), false);
+                    haltAfter(context, frame.materialize());
                 }
             });
         }
 
-// afterTagInstrument = instrumenter.attach(CALL_TAG, new StandardAfterInstrumentListener() {
-//
-// public void onReturnVoid(Probe probe, Node node, VirtualFrame vFrame) {
-// doHalt(node, vFrame.materialize());
-// }
-//
-// public void onReturnValue(Probe probe, Node node, VirtualFrame vFrame, Object result) {
-// doHalt(node, vFrame.materialize());
-// }
-//
-// public void onReturnExceptional(Probe probe, Node node, VirtualFrame vFrame, Throwable exception)
-// {
-// doHalt(node, vFrame.materialize());
-// }
-//
-// @TruffleBoundary
-// private void doHalt(Node node, MaterializedFrame mFrame) {
-// // HALT:
-// final int currentStackDepth = currentStackDepth();
-// strategyTrace("HALT AFTER", "stackDepth: start=%d current=%d", stackDepth, currentStackDepth);
-// if (currentStackDepth < stackDepth) {
-// halt(node, mFrame, false);
-// }
-// strategyTrace("RESUME AFTER", "");
-// }
-// }, "Debugger StepOut");
+        @TruffleBoundary
+        private void haltAfter(EventContext context, MaterializedFrame frame) {
+            --unfinishedStepCount;
+            final int currentStackDepth = currentStackDepth();
+            strategyTrace(null, "HALT AFTER stack=%d,%d unfinished=%d", startStackDepth, currentStackDepth, unfinishedStepCount);
+            if (currentStackDepth < startStackDepth) {
+                // HALT: just "stepped out"
+                if (unfinishedStepCount <= 0) {
+                    halt(context.getInstrumentedNode(), frame, false);
+                }
+            }
+            if (TRACE) {
+                strategyTrace("RESUME AFTER", "stack=%d,%d", startStackDepth, currentStackDepth());
+            }
+        }
 
         @Override
         protected void unsetStrategy() {
@@ -862,6 +891,9 @@ public final class Debugger extends TruffleInstrument {
                 running = true;
             } catch (KillException e) {
                 contextTrace("KILL");
+                throw e;
+            } catch (QuitException e) {
+                contextTrace("QUIT");
                 throw e;
             } finally {
                 haltedNode = null;
